@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
 
-一款Verilog自动连线工具，基于 YAML 配置文件自动生成top模块连线。支持协议信号自动映射、条件编译、参数化模块等高级特性。
+Verilog自动连线工具，基于 YAML 配置文件自动生成top模块连线。支持协议信号自动映射、条件编译、参数化模块等高级特性。
 
 ## 🎯 核心优势总结
 
@@ -431,6 +431,7 @@ pip install PyYAML
 ---
 
 **AutoWire** - 让 Verilog SOC 集成变得简单高效！ 🚀
+
 
 
 
