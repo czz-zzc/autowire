@@ -301,7 +301,7 @@ instances:
       DATA_WIDTH: 32
       ADDR_WIDTH: 4
 ```
-### 5. 输出对齐
+### 6. 代码对齐
 
 ```verilog
 module soc_top(
@@ -423,4 +423,5 @@ pip install PyYAML
 ---
 
 **AutoWire** - 让 Verilog SOC 集成变得简单高效！ 🚀
+
 
