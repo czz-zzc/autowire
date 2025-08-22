@@ -49,10 +49,10 @@ project/
 
 ```bash
 # 指定配置文件和输出目录
-python autowire.py -i ./config/vcn.yaml -b ./config/bounding.yaml -o output/
+python autowire.py -i ./vcn.yaml -b ./bounding.yaml -o output/
 
 # 启用调试模式
-python autowire.py -i ./config/vcn.yaml -b ./config/bounding.yaml -o output/ -d
+python autowire.py -i ./vcn.yaml -b ./bounding.yaml -o output/ -d
 ```
 
 ### 2. 命令行参数
@@ -424,6 +424,7 @@ pip install PyYAML
 ---
 
 **AutoWire** - 让 Verilog SOC 集成变得简单高效！ 🚀
+
 
 
 
