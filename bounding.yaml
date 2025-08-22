@@ -1,0 +1,74 @@
+# Protocol signal definitions for SOC integration
+protocol_signals:
+  ahb:
+    - haddr
+    - hwdata
+    - hrdata
+    - hwrite
+    - htrans
+    - hsize
+    - hburst
+    - hready
+    - hresp
+    - hsel
+    - hready_out
+  
+  axi:
+    # AW channel
+    - awaddr
+    - awlen
+    - awsize
+    - awburst
+    - awlock
+    - awcache
+    - awprot
+    - awvalid
+    - awready
+    - awid
+    - awuser
+    # W channel  
+    - wdata
+    - wstrb
+    - wlast
+    - wvalid
+    - wready
+    - wid
+    - wuser
+    # B channel
+    - bresp
+    - bvalid
+    - bready
+    - bid
+    - buser
+    # AR channel
+    - araddr
+    - arlen
+    - arsize
+    - arburst
+    - arlock
+    - arcache
+    - arprot
+    - arvalid
+    - arready
+    - arid
+    - aruser
+    # R channel
+    - rdata
+    - rresp
+    - rlast
+    - rvalid
+    - rready
+    - rid
+    - ruser
+  
+  apb:
+    - paddr
+    - pwdata
+    - prdata
+    - pwrite
+    - psel
+    - penable
+    - pready
+    - pslverr
+    - pprot
+    - pstrb

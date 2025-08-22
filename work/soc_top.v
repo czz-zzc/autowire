@@ -1,0 +1,70 @@
+module soc_top(
+    // u_cpu ports
+    input          clk,
+    input          rst_n,
+    output  [2:0]  cpu_ahbm_hsize,
+    output  [2:0]  cpu_ahbm_hburst,
+    input          hready_out,
+    input          debug_mode,
+
+    // u_uart ports
+    output         cpu_ahbm_hready_out,
+    output         tx,
+    input          rx
+)
+
+wire  [15:0]  cpu_ahbm_haddr ;
+wire  [31:0]  cpu_ahbm_hrdata;
+wire          cpu_ahbm_hresp ;
+wire  [1:0]   cpu_ahbm_htrans;
+wire  [31:0]  cpu_ahbm_hwdata;
+wire          cpu_ahbm_hwrite;
+wire  [1:0]   irq            ;
+wire          uart_irq       ;
+
+// Instance: u_cpu (cpu_core)
+cpu_core u_cpu (
+    .clk            (clk                   ),    // input 
+    .rst_n          (rst_n                 ),    // input 
+    .a_haddr        (cpu_ahbm_haddr        ),    // output [15:0]
+    .a_hwdata       (cpu_ahbm_hwdata       ),    // output [31:0]
+    .a_hrdata       (cpu_ahbm_hrdata       ),    // input  [31:0]
+    .a_hwrite       (cpu_ahbm_hwrite       ),    // output
+    .a_htrans       (cpu_ahbm_htrans       ),    // output [1:0]
+    .a_hsize        (cpu_ahbm_hsize        ),    // output [2:0]
+    .a_hburst       (cpu_ahbm_hburst       ),    // output [2:0]
+    .a_hready       (hready_out            ),    // input 
+    .a_hresp        (cpu_ahbm_hresp        ),    // input 
+    .debug_mode     (debug_mode            ),    // input 
+    .test_in        (irq[1:0]              ),    // input  [1:0]
+    .irq            ({6'b0,irq[0],uart_irq})     // input  [7:0]
+);
+
+// Instance: u_irqqqq (irqqqq)
+irqqqq u_irqqqq (
+    .clk            (clk                   ),    // input 
+    .rst_n          (rst_n                 ),    // input 
+    .irq            (irq                   )     // output [1:0]
+);
+
+// Instance: u_uart (uart_controller)
+uart_controller #(
+    .BAUD_RATE(9600)
+) u_uart (
+    .clk            (clk                   ),    // input 
+    .rst_n          (rst_n                 ),    // input 
+    .haddr_ahb      (cpu_ahbm_haddr        ),    // input  [15:0]
+    .hwdata_ahb     (cpu_ahbm_hwdata       ),    // input  [31:0]
+    .hrdata_ahb     (cpu_ahbm_hrdata       ),    // output [31:0]
+    .hwrite_ahb     (cpu_ahbm_hwrite       ),    // input 
+    .htrans_ahb     (cpu_ahbm_htrans       ),    // input  [1:0]
+    .hsel_ahb       (1'b1                  ),    // input 
+    .hready_out_ahb (cpu_ahbm_hready_out   ),    // output
+    .hresp_ahb      (cpu_ahbm_hresp        ),    // output
+    .tx             (tx                    ),    // output
+    .rx             (rx                    ),    // input 
+    .test_out       (                      ),    // output
+    .uart_irq       (uart_irq              )     // output
+);
+
+endmodule
