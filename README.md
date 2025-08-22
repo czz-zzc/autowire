@@ -38,7 +38,7 @@ project/
 │   ├── define.v         # 宏定义文件
 │   ├── cpu_core.v       # CPU模块
 │   ├── uart_controller.v# UART模块
-│   └── soc_top.v        # SOC顶层(生成)
+│   └── irqqqq.v         # 测试模块
 └── output/              # 输出目录
     └── soc_top.v        # 生成的顶层文件
 ```
@@ -73,10 +73,11 @@ python autowire.py [选项]
 ### 基本配置结构 (config.yaml)
 
 ```yaml
-top_module: sorr_top
+top_module: soc_top
 
 # Define files (optional)  
-define_files: ./rtl/define.v
+define_files:
+  - ./rtl/define.v
 
 # Module definitions
 rtl_path:
@@ -99,7 +100,7 @@ instances:
 ##sub_moduel con
 connections:
   u_cpu.a_hready : hready_out
-  u_cpu.irq      : “{6'b0,irq[0],uart_irq}”
+  u_cpu.irq      : "{6'b0,irq[0],uart_irq}"
   u_uart.hsel_ahb: 1'b1
   u_cpu.test_in  : irq[1:0]
   u_uart.test_out:
@@ -423,5 +424,6 @@ pip install PyYAML
 ---
 
 **AutoWire** - 让 Verilog SOC 集成变得简单高效！ 🚀
+
 
 
