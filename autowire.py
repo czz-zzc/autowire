@@ -84,6 +84,9 @@ class VerilogParser:
     def __init__(self, debug=False):
         self.defines = {}  # 当前生效的define定义（全局+文件局部）
         self.parameters = {}  # 存储parameter定义
+        self._define_patterns_cache = {}  # 缓存编译好的define正则表达式模式
+        self._param_patterns_cache = {}   # 缓存编译好的参数正则表达式模式
+        self._width_resolve_cache = {}    # 缓存宽度表达式解析结果
         set_debug_mode(debug)  # 设置全局调试模式
         
     def set_defines_context(self, global_defines: Dict[str, str], file_defines: Dict[str, str]):
@@ -93,6 +96,10 @@ class VerilogParser:
         self.defines.update(global_defines)
         # 再添加文件局部defines，会覆盖同名的全局define
         self.defines.update(file_defines)
+        # 清理所有缓存，因为define集合已经改变
+        self._define_patterns_cache.clear()
+        self._param_patterns_cache.clear()
+        self._width_resolve_cache.clear()
         debug_print(f"  Set defines context: {len(global_defines)} global + {len(file_defines)} local = {len(self.defines)} total")
         
     def parse_defines(self, define_file: str) -> Dict[str, str]:
@@ -117,7 +124,7 @@ class VerilogParser:
             
             # 处理条件编译
             lines = external_content.split('\n')
-            defines = self._process_conditional_defines(lines)
+            defines = self._process_conditional_defines(lines, define_file)
                 
         except Exception as e:
             print(f"Error parsing define file {define_file}: {e}")
@@ -152,15 +159,10 @@ class VerilogParser:
                 external_lines.append(line)
         
         external_content = '\n'.join(external_lines)
-        #打印文件名及提取的信息
-        debug_print(f"Extracted external content for define parsing from {define_file}:")
-        for i, line in enumerate(external_lines[:100], 1):  # 只显示前10行
-            if line.strip():
-                debug_print(f"  Line {i}: {line.strip()}")
         
         return external_content
     
-    def _process_conditional_defines(self, lines: List[str]) -> Dict[str, str]:
+    def _process_conditional_defines(self, lines: List[str], define_file: str = "unknown") -> Dict[str, str]:
         """处理条件编译指令"""
         defines = {}
         defined_symbols = set()
@@ -193,16 +195,20 @@ class VerilogParser:
             elif line.startswith('`endif') and condition_stack:
                 current_condition = condition_stack.pop()
             elif line.startswith('`define') and current_condition:
-                # 处理define定义
+                # 处理define定义，跳过带参数的宏定义（如 CX_LOGBASE2(n)）
+                if '(' in line and ')' in line and 'define' in line:
+                    # 跳过带参数的宏定义，这种需要更复杂的处理,打印增加文件名
+                    debug_print(f"  Line {line_num}: skipping parameterized macro in {define_file}")
+                    continue
+                    
                 match = re.match(r'`define\s+(\w+)(?:\s+(.+))?$', line)
                 if match:
                     name = match.group(1)
                     value = match.group(2).strip() if match.group(2) else "1"
                     defines[name] = value
                     defined_symbols.add(name)
-                    debug_print(f"  Line {line_num}: define found")
                 else:
-                    print(f"Warning: Invalid define format at line {line_num}: {line}")
+                    print(f"Warning: Invalid define format at line {line_num}: {line[:50]}...")
                     
         return defines
     
@@ -276,6 +282,10 @@ class VerilogParser:
             parameters = self._parse_parameters(param_section)
             for param in parameters:
                 default_params[param.name] = param.default_value
+                
+        # 还需要解析模块体内的参数声明
+        module_body_params = self._parse_module_body_parameters(content, module_name)
+        default_params.update(module_body_params)
         
         # 合并实例参数，实例参数优先级更高
         effective_params = {}
@@ -306,14 +316,12 @@ class VerilogParser:
             # 内联式声明：直接从端口列表解析
             ports = self._parse_inline_port_declarations(processed_port_section, params)
         else:
-            # 分离式声明：提取端口名，然后在模块内容中查找声明
+            # 分离式声明：提取端口名，然后批量在模块内容中查找声明
             port_names = [p.strip() for p in processed_port_section.split(',') if p.strip()]
             port_names = [name for name in port_names if name and not name.startswith('//')]
             
-            for port_name in port_names:
-                port = self._find_port_declaration(port_name, full_content, params)
-                if port:
-                    ports.append(port)
+            # 批量查找端口声明，提高效率
+            ports = self._find_port_declarations_batch(port_names, full_content, params)
                     
         return ports
     
@@ -386,47 +394,46 @@ class VerilogParser:
         debug_print(f"Found inline port {name}: {direction} [{width_expr}]")
         return port
     
-    def _find_port_declaration(self, port_name: str, full_content: str, params: Dict[str, str]) -> Optional[Port]:
-        """在模块内容中查找指定端口的声明，支持两种Verilog端口声明方式"""
-        # 方式1：分离式声明 - input/output/inout [width] port_name;
-        # 修改正则表达式以支持位宽后没有空格的情况，如: output [7:0]port_name;
-        port_pattern1 = rf'(input|output|inout)\s*(?:\[([^\]]+)\])?\s*{re.escape(port_name)}\s*;'
-        match1 = re.search(port_pattern1, full_content)
+    def _find_port_declarations_batch(self, port_names: List[str], full_content: str, params: Dict[str, str]) -> List[Port]:
+        """批量查找端口声明，提高效率"""
+        if not port_names:
+            return []
         
-        if match1:
-            direction = match1.group(1)
-            width_expr = match1.group(2) if match1.group(2) else "0"
-            
-            # 使用参数信息计算位宽
-            resolved_width = self._resolve_width_with_params(width_expr, params)
-            
-            port = Port(
-                name=port_name,
-                direction=direction,
-                width=resolved_width,
-                width_value=self._calculate_width_value(resolved_width)
-            )
-            
-            debug_print(f"Found port {port_name} using separated declaration: {direction} [{width_expr}]")
-            return port
+        ports = []
+        found_ports = set()  # 跟踪已找到的端口，避免重复
         
-        # 方式2：内联式声明 - 在端口列表中直接声明
-        # 查找模块声明中的端口列表部分
+        # 方式1：分离式声明 - 一次性查找所有 input/output/inout 声明
+        separated_pattern = r'(input|output|inout)\s*(?:\[([^\]]+)\])?\s*(\w+)\s*;'
+        separated_matches = re.findall(separated_pattern, full_content)
+        
+        # 将分离式声明结果建立索引
+        separated_declarations = {}
+        for direction, width_expr, name in separated_matches:
+            if name in port_names:
+                separated_declarations[name] = (direction, width_expr if width_expr else "0")
+        
+        # 方式2：内联式声明 - 查找模块声明中的端口列表部分
+        inline_declarations = {}
         module_pattern = r'module\s+\w+\s*(?:#\([^)]*\))?\s*\((.*?)\);'
         module_match = re.search(module_pattern, full_content, re.DOTALL)
         
         if module_match:
             port_section = module_match.group(1)
-            # 在端口列表中查找内联声明
-            # 修改正则表达式以支持位宽后没有空格的情况
-            inline_pattern = rf'(input|output|inout)\s*(?:\[([^\]]+)\])?\s*{re.escape(port_name)}'
-            inline_match = re.search(inline_pattern, port_section)
+            # 在端口列表中查找所有内联声明
+            inline_pattern = r'(input|output|inout)\s*(?:\[([^\]]+)\])?\s*(\w+)'
+            inline_matches = re.findall(inline_pattern, port_section)
             
-            if inline_match:
-                direction = inline_match.group(1)
-                width_expr = inline_match.group(2) if inline_match.group(2) else "0"
-                
-                # 使用参数信息计算位宽
+            for direction, width_expr, name in inline_matches:
+                if name in port_names:
+                    inline_declarations[name] = (direction, width_expr if width_expr else "0")
+        
+        # 为每个请求的端口创建Port对象
+        for port_name in port_names:
+            port = None
+            
+            # 优先使用分离式声明
+            if port_name in separated_declarations:
+                direction, width_expr = separated_declarations[port_name]
                 resolved_width = self._resolve_width_with_params(width_expr, params)
                 
                 port = Port(
@@ -435,12 +442,29 @@ class VerilogParser:
                     width=resolved_width,
                     width_value=self._calculate_width_value(resolved_width)
                 )
+                debug_print(f"Found port {port_name} using separated declaration: {direction} [{width_expr}]")
                 
+            # 如果分离式找不到，使用内联式声明
+            elif port_name in inline_declarations:
+                direction, width_expr = inline_declarations[port_name]
+                resolved_width = self._resolve_width_with_params(width_expr, params)
+                
+                port = Port(
+                    name=port_name,
+                    direction=direction,
+                    width=resolved_width,
+                    width_value=self._calculate_width_value(resolved_width)
+                )
                 debug_print(f"Found port {port_name} using inline declaration: {direction} [{width_expr}]")
-                return port
+            
+            if port:
+                ports.append(port)
+                found_ports.add(port_name)
+            else:
+                print(f"Warning: Cannot find port declaration for: {port_name}")
         
-        print(f"Warning: Cannot find port declaration for: {port_name}")
-        return None
+        debug_print(f"Batch port search: found {len(found_ports)}/{len(port_names)} ports")
+        return ports
     
     def _process_conditional_compilation(self, content: str, defines: Dict[str, str]) -> str:
         """处理条件编译指令，返回处理后的内容"""
@@ -529,41 +553,74 @@ class VerilogParser:
         return port
     
     def _resolve_width_with_params(self, width_expr: str, params: Dict[str, str]) -> str:
-        """使用参数信息解析位宽表达式并返回简化后的表达式"""
+        """使用参数信息解析位宽表达式并返回简化后的表达式（优化版本）"""
         if not width_expr or width_expr == "0":
             return "0"
+        
+        # 创建缓存键（包含宽度表达式和参数哈希）
+        params_hash = tuple(sorted(params.items())) if params else ()
+        defines_hash = tuple(sorted(self.defines.items())) if self.defines else ()
+        cache_key = (width_expr, params_hash, defines_hash)
+        
+        # 检查缓存
+        if cache_key in self._width_resolve_cache:
+            cached_result = self._width_resolve_cache[cache_key]
+            debug_print(f"Cache hit for width expression: '{width_expr}' -> '{cached_result}'")
+            return cached_result
             
         resolved_expr = width_expr
         original_expr = width_expr
         
-        # 替换参数值
-        for param_name, param_value in params.items():
-            resolved_expr = resolved_expr.replace(param_name, str(param_value))
-        
-        # 递归替换define值，直到没有更多的define引用
-        max_iterations = 10  # 防止无限递归
+        # 先替换define值，再替换参数值，避免参数名干扰宏名
+        max_iterations = 3  # 防止无限递归
         iteration = 0
         while '`' in resolved_expr and iteration < max_iterations:
             old_expr = resolved_expr
+            
+            # 使用缓存的正则表达式模式进行define替换
             for define_name, define_value in self.defines.items():
-                resolved_expr = resolved_expr.replace(f'`{define_name}', define_value)
+                if define_name not in self._define_patterns_cache:
+                    # 首次遇到这个define时，编译并缓存正则表达式
+                    pattern = rf'`{re.escape(define_name)}(?![a-zA-Z0-9_])'
+                    self._define_patterns_cache[define_name] = re.compile(pattern)
+                
+                # 使用缓存的编译好的正则表达式，避免特殊字符问题
+                pattern = self._define_patterns_cache[define_name]
+                resolved_expr = pattern.sub(lambda m: define_value, resolved_expr)
             
             # 如果这一轮没有任何替换，说明有未知的define，退出循环
             if old_expr == resolved_expr:
                 break
             iteration += 1
         
+        # 再替换参数值，使用缓存的正则表达式确保单词边界匹配
+        if params_hash not in self._param_patterns_cache:
+            # 首次遇到这个参数组合时，预编译所有参数的正则表达式
+            self._param_patterns_cache[params_hash] = {}
+            for param_name in params.keys():
+                pattern = rf'\b{re.escape(param_name)}\b'
+                self._param_patterns_cache[params_hash][param_name] = re.compile(pattern)
+        
+        # 使用缓存的参数模式进行替换
+        param_patterns = self._param_patterns_cache[params_hash]
+        for param_name, param_value in params.items():
+            if param_name in param_patterns:
+                pattern = param_patterns[param_name]
+                resolved_expr = pattern.sub(str(param_value), resolved_expr)
+        
         # 如果仍然包含未解析的define，返回原始表达式
         if '`' in resolved_expr:
-            debug_print(f"Unresolved defines in: '{original_expr}' -> '{resolved_expr}'")
-            debug_print(f"Available defines: {list(self.defines.keys())[:10]}...")  # 只显示前10个
-            print(f"Warning: Unresolved defines in width expression: {resolved_expr}")
-            return width_expr
+            print(f"Warning:  Unresolved defines in: '{original_expr}' -> '{resolved_expr}'")
+            result = width_expr
+        else:
+            # 尝试简化表达式
+            result = self._simplify_expression(resolved_expr)
+            debug_print(f"Successfully resolved: '{original_expr}' -> '{result}' (took {iteration} iterations)")
         
-        debug_print(f"Successfully resolved: '{original_expr}' -> '{resolved_expr}' (took {iteration} iterations)")
+        # 将结果缓存起来
+        self._width_resolve_cache[cache_key] = result
         
-        # 尝试简化表达式
-        return self._simplify_expression(resolved_expr)
+        return result
     
     def _simplify_expression(self, expr: str) -> str:
         """简化数学表达式，支持范围格式[msb:lsb]"""
@@ -586,12 +643,18 @@ class VerilogParser:
         return expr
     
     def _eval_safe(self, expr: str) -> int:
-        """安全计算数学表达式"""
+        """安全计算数学表达式（优化版本）"""
         expr = expr.strip()
         
-        # 替换剩余的define值
+        # 替换剩余的define值，使用缓存的模式
         for define_name, define_value in self.defines.items():
-            expr = expr.replace(f'`{define_name}', define_value)
+            if define_name not in self._define_patterns_cache:
+                # 为_eval_safe创建简单的字符串替换模式（不需要单词边界）
+                pattern = f'`{define_name}'
+                self._define_patterns_cache[define_name] = re.compile(re.escape(pattern))
+            else:
+                # 如果已有复杂的正则模式，直接用字符串替换更快
+                expr = expr.replace(f'`{define_name}', define_value)
             
         # 安全的表达式求值（只允许数字、+、-、*、/、()）
         allowed_chars = set('0123456789+-*/(). ')
@@ -620,6 +683,31 @@ class VerilogParser:
             parameters.append(param)
             
         return parameters
+    
+    def _parse_module_body_parameters(self, content: str, module_name: str) -> Dict[str, str]:
+        """解析模块体内部的参数声明"""
+        params = {}
+        
+        # 找到模块的开始和结束位置
+        module_pattern = rf'module\s+{re.escape(module_name)}\s*(?:#\([^)]*\))?\s*\([^)]*\)\s*;(.*?)endmodule'
+        match = re.search(module_pattern, content, re.DOTALL)
+        
+        if not match:
+            return params
+            
+        module_body = match.group(1)
+        
+        # 在模块体内查找parameter声明
+        param_pattern = r'parameter\s+(?:\w+\s+)?(\w+)\s*=\s*([^;]+);'
+        matches = re.findall(param_pattern, module_body)
+        
+        for name, value in matches:
+            # 清理值，移除注释
+            value = re.sub(r'//.*$', '', value, flags=re.MULTILINE).strip()
+            params[name] = value
+            debug_print(f"Found parameter {name} = {value}")
+            
+        return params
     
     def _calculate_width_value(self, width_expr: str) -> int:
         """计算位宽表达式的数值"""
@@ -772,18 +860,15 @@ class VerilogGenerator:
                 # 解析该文件的局部define
                 file_defines = self.parser.parse_defines(rtl_file)
                 self.file_defines[rtl_file] = file_defines
-                if file_defines:
-                    debug_print(f"Found local defines in {rtl_file}:")
-                    for name, value in file_defines.items():
-                        debug_print(f"  Local define {name} = {value}")
                 
                 # 解析模块名称
                 module_names = self.parser.find_module_names(rtl_file)
                 for module_name in module_names:
                     self.module_files[module_name] = rtl_file
                     debug_print(f"Mapped module {module_name} -> {rtl_file}")
-        
-        debug_print(f"Global defines: {self.global_defines}")
+        # 单个打印global_defines
+        for name, value in self.global_defines.items():
+            debug_print(f"Global define {name} = {value}")
         debug_print(f"File-specific defines: {self.file_defines}")
     
     def parse_instance_modules(self):
@@ -1449,7 +1534,7 @@ class VerilogGenerator:
         return connection
     
 
-    def parse_bounding(self):
+    def parse_bounding(self) -> Optional[Dict[str, str]]:
         """解析bounding_con配置，生成中间YAML文件"""
         if 'bounding_con' not in self.config:
             print("No bounding_con found in configuration")
@@ -1536,7 +1621,7 @@ class VerilogGenerator:
             match = re.match(source_regex, port.name, re.IGNORECASE)
             if match:
                 # 检查匹配的部分是否包含协议信号
-                captured_parts = match.groups()  # 获取通配符匹配的部分
+                captured_parts = list(match.groups())  # 获取通配符匹配的部分，转换为list
                 
                 # 检查是否包含协议信号
                 if self._contains_protocol_signal(port.name, signal_list):
@@ -1574,7 +1659,7 @@ class VerilogGenerator:
         return result
 
 
-    def create_intermediate_yaml(self, generated_connections: Dict[str, str]) -> str:
+    def create_intermediate_yaml(self, generated_connections: Dict[str, str]) -> Optional[str]:
         """创建包含生成的连接的中间YAML文件"""
         if not generated_connections:
             return None
@@ -1698,6 +1783,8 @@ class VerilogGenerator:
         
         # 5. 处理bounding_con，生成中间YAML
         generated_connections = self.parse_bounding()
+        if generated_connections is None:
+            generated_connections = {}
         success, intermediate_yaml_file = self._apply_generated_connections(generated_connections, original_yaml_file)
         if not success:
             return False
@@ -1752,4 +1839,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
