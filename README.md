@@ -29,7 +29,7 @@ pip install pyverilog pyyaml
 ### 1. 基本用法
 
 ```bash
-python autowire.py -i vcn.yaml -o output/
+python autowire.py -i vcn.yaml -b bounding.yaml -o output/
 ```
 
 ### 2. 配置文件示例
@@ -126,17 +126,10 @@ AutoWire v2.0 采用模块化架构，主要包含以下组件：
 1. **配置加载**: 解析 YAML 配置文件和协议信号定义
 2. **模块解析**: 使用 PyVerilog 解析 RTL 文件，提取端口和参数信息
 3. **连线处理**: 
-   - 处理协议信号连线（基于模式匹配）
+   - 处理协议信号连线（基于列表匹配）
    - 处理手动连线配置
    - 执行自动连线（同名信号匹配）
 4. **代码生成**: 生成顶层模块 Verilog 代码
-
-### 数据结构
-
-- `Port`: 端口信息（名称、方向、位宽等）
-- `Instance`: 实例信息（模块名、实例名、参数等）
-- `WireInfo`: 线网信息（输入输出连接状态）
-- `ModuleInfo`: 模块信息（端口列表、参数列表等）
 
 ## 命令行选项
 
@@ -159,8 +152,6 @@ optional arguments:
 
 ## 使用示例
 
-### 示例 1: 基本 SOC 集成
-
 ```bash
 
 # 指定配置文件和输出目录
@@ -176,12 +167,6 @@ python autowire.py -i soc_config.yaml -b bounding.yaml -o build/soc_top.v
 python autowire.py -i soc_config.yaml -b bounding.yaml -o build/soc_top.v -d
 ```
 
-### 示例 2: 自定义协议信号
-
-```bash
-# 使用自定义协议信号定义文件
-python autowire.py -i config.yaml -b custom_protocols.yaml -o output/
-```
 
 ## 高级功能
 
@@ -378,5 +363,6 @@ autowire-master/
 ---
 
 **技术支持**: 如有问题请提交 GitHub Issue
+
 
 
