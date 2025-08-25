@@ -2,14 +2,14 @@ top_module: soc_top
 
 # Global Define files (optional)  
 define_files: 
-  - ./autowire/rtl/define.vh
+  - ./rtl/define.vh
 #  - ./rtl/global_define.vh
 
 # Module definitions
 rtl_path:
-  - ./autowire/rtl/irqqqq.sv
-  - ./autowire/rtl/cpu_core.v
-  - ./autowire/rtl/uart_controller.v
+  - ./rtl/irqqqq.sv
+  - ./rtl/cpu_core.v
+  - ./rtl/uart_controller.v
 
 instances:
   - module: cpu_core
@@ -37,4 +37,5 @@ bounding_con:
   - ahb:
       u_cpu.a_*    : cpu_ahbm_*
       u_uart.*_ahb  :  cpu_ahbm_*
+
 
