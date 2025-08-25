@@ -310,9 +310,15 @@ class VerilogCodeGenerator:
             lines.append(f"{instance.module_name} #(")
             # 参数对齐
             max_param_name_len = max(len(param_name) for param_name in instance.parameters.keys())
-            for param_name, param_value in instance.parameters.items():
+            max_param_value_len = max(len(str(param_value)) for param_value in instance.parameters.values())
+            param_items = list(instance.parameters.items())
+            for i, (param_name, param_value) in enumerate(param_items):
                 param_name_aligned = param_name.ljust(max_param_name_len)
-                lines.append(f"    .{param_name_aligned}({param_value})")
+                param_value_aligned = str(param_value).ljust(max_param_value_len)
+                param_line = f"    .{param_name_aligned}({param_value_aligned})"
+                if i < len(param_items) - 1:  # 不是最后一个参数
+                    param_line += ","
+                lines.append(param_line)
             lines.append(f") {instance.instance_name} (")
         else:
             lines.append(f"{instance.module_name} {instance.instance_name} (")
