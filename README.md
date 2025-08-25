@@ -386,9 +386,10 @@ autowire-master/
 ## 待办
 - 将[dma_controller](https://github.com/czz-zzc/dma_controller)作为example展示
 - 支持parameter延申至top
-- 支持数据类port自动连线
+- 支持数组类port自动连线
 
 **技术支持**: 如有问题请提交 GitHub Issue
+
 
 
 
