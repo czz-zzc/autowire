@@ -24,4 +24,6 @@ module cpu_core (
     input  [1:0]                    test_in,
     input  [7:0]                    irq
 );
+
+assign test_out = (8 != `GEN1_LINK_SP);
 endmodule

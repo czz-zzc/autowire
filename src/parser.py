@@ -1,0 +1,588 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+基于pyverilog的Verilog解析器 (重构版本)
+主要功能：
+1. 使用文件合并机制处理宏定义
+2. 解析模块端口信息
+3. 解析参数定义
+"""
+import os
+import re
+import tempfile
+from typing import Dict, List, Optional
+from pyverilog.vparser.parser import parse
+from pyverilog.vparser.ast import (
+    Source, ModuleDef, Parameter, Ioport, Decl, 
+    Input, Output, Inout, Localparam
+)
+from pyverilog.ast_code_generator.codegen import ASTCodeGenerator
+
+from .data_structures import ModuleInfo, Port, Parameter as ParamInfo
+from .logger import get_logger
+
+logger = get_logger(__name__)
+
+
+class PyVerilogParser:
+    """基于pyverilog的Verilog解析器 (简化版本)"""
+    
+    def __init__(self, debug=False, output_dir=None):
+        self.debug = debug
+        self.define_files: List[str] = []
+        self.output_dir = output_dir  # 输出目录，用于存放临时文件
+        self.generated_files = []  # 追踪生成的PLY文件
+        
+    def cleanup_ply_files(self):
+        """清理PLY生成的文件"""
+        ply_files = ['parser.out', 'parsetab.py']
+        for filename in ply_files:
+            if os.path.exists(filename):
+                try:
+                    os.remove(filename)
+                    logger.debug(f"Removed PLY file: {filename}")
+                except Exception as e:
+                    logger.warning(f"Failed to remove PLY file {filename}: {e}")
+                    
+        # 如果在输出目录也生成了，也清理
+        if self.output_dir:
+            for filename in ply_files:
+                filepath = os.path.join(self.output_dir, filename)
+                if os.path.exists(filepath):
+                    try:
+                        os.remove(filepath)
+                        logger.debug(f"Removed PLY file: {filepath}")
+                    except Exception as e:
+                        logger.warning(f"Failed to remove PLY file {filepath}: {e}")
+        
+    def parse_defines_from_files(self, define_files: List[str]) -> Dict[str, str]:
+        """存储宏定义文件列表"""
+        self.define_files = [f for f in define_files if f and os.path.exists(f)]
+        logger.info(f"Registered {len(self.define_files)} define files")
+        return {}
+    
+    def parse_module_from_file(self, file_path: str, module_name: str, 
+                             instance_params: Optional[Dict[str, str]] = None) -> Optional[ModuleInfo]:
+        """通过合并define文件和RTL文件解析指定模块"""
+        if not os.path.exists(file_path):
+            logger.error(f"File not found: {file_path}")
+            return None
+            
+        try:
+            # 合并所有内容
+            combined_content = self._create_combined_content(file_path)
+            
+            # 解析AST
+            module_info = self._parse_combined_content(combined_content, module_name, file_path, instance_params)
+            
+            if module_info:
+                logger.info(f"Successfully parsed module {module_name} with {len(module_info.ports)} ports")
+            
+            return module_info
+                
+        except Exception as e:
+            logger.error(f"Error parsing module {module_name}: {e}")
+            if self.debug:
+                import traceback
+                logger.debug(f"Traceback: {traceback.format_exc()}")
+            return None
+    
+    def find_modules_in_files(self, rtl_files: List[str]) -> Dict[str, str]:
+        """查找文件中的所有模块，返回模块名->文件路径的映射"""
+        module_files = {}
+        
+        for rtl_file in rtl_files:
+            if not rtl_file or not os.path.exists(rtl_file):
+                continue
+                
+            try:
+                modules = self._extract_modules_by_regex(rtl_file)
+                for module_name in modules:
+                    module_files[module_name] = rtl_file
+            except Exception as e:
+                logger.error(f"Error parsing {rtl_file}: {e}")
+                
+        return module_files
+    
+    def _create_combined_content(self, file_path: str) -> str:
+        """创建合并的文件内容"""
+        combined_content = ""
+        
+        # 添加define文件内容
+        for define_file in self.define_files:
+            try:
+                with open(define_file, 'r', encoding='utf-8') as f:
+                    combined_content += f.read() + '\n'
+            except Exception as e:
+                logger.warning(f"Error reading define file {define_file}: {e}")
+        
+        # 添加RTL文件内容
+        with open(file_path, 'r', encoding='utf-8') as f:
+            combined_content += f.read()
+            
+        return combined_content
+    
+    def _parse_combined_content(self, combined_content: str, module_name: str, 
+                              file_path: str, instance_params: Optional[Dict[str, str]]) -> Optional[ModuleInfo]:
+        """解析合并的内容"""
+        # 创建临时文件 - 优先放在输出目录下
+        if self.output_dir and os.path.isdir(self.output_dir):
+            # 在输出目录下创建临时文件
+            temp_filename = f"temp_{module_name}_{os.getpid()}.v"
+            tmp_file_path = os.path.join(self.output_dir, temp_filename)
+            
+            try:
+                with open(tmp_file_path, 'w', encoding='utf-8') as f:
+                    f.write(combined_content)
+                temp_file_created = True
+            except Exception as e:
+                logger.warning(f"Failed to create temp file in output dir: {e}, using system temp")
+                temp_file_created = False
+        else:
+            temp_file_created = False
+            
+        # 如果无法在输出目录创建，则使用系统临时文件
+        if not temp_file_created:
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.v', delete=False, encoding='utf-8') as tmp_file:
+                tmp_file.write(combined_content)
+                tmp_file_path = tmp_file.name
+            
+        try:
+            # 解析AST
+            ast_tree, _ = parse([tmp_file_path])
+            if ast_tree is None:
+                logger.warning(f"Failed to parse combined file for {module_name}")
+                return None
+            
+            # 查找模块
+            module_ast = self._find_module_in_ast(ast_tree, module_name)
+            if module_ast is None:
+                all_modules = self._list_modules_in_ast(ast_tree)
+                logger.warning(f"Module {module_name} not found. Available: {all_modules}")
+                return None
+                
+            # 解析模块信息
+            return self._parse_module_ast(module_ast, file_path, instance_params)
+            
+        finally:
+            # 清理临时文件 - 仅在非调试模式下删除
+            if not self.debug:
+                try:
+                    os.unlink(tmp_file_path)
+                except:
+                    pass
+            else:
+                logger.debug(f"Debug mode: temporary file preserved at {tmp_file_path}")
+    
+    def _find_module_in_ast(self, ast_tree, module_name: str):
+        """在AST中查找指定的模块"""
+        def find_recursive(node):
+            if isinstance(node, ModuleDef) and node.name == module_name:
+                return node
+            if hasattr(node, 'children'):
+                for child in node.children():
+                    result = find_recursive(child)
+                    if result:
+                        return result
+            return None
+        return find_recursive(ast_tree)
+    
+    def _list_modules_in_ast(self, ast_tree) -> List[str]:
+        """列出AST中的所有模块名"""
+        modules = []
+        def find_recursive(node):
+            if isinstance(node, ModuleDef):
+                modules.append(node.name)
+            if hasattr(node, 'children'):
+                for child in node.children():
+                    find_recursive(child)
+        find_recursive(ast_tree)
+        return modules
+    
+    def _parse_module_ast(self, module_ast: ModuleDef, file_path: str, 
+                         instance_params: Optional[Dict[str, str]] = None) -> ModuleInfo:
+        """解析模块AST"""
+        module_info = ModuleInfo(name=module_ast.name, file_path=file_path)
+        
+        # 解析参数：先解析paramlist，再解析模块内部的parameter声明
+        if module_ast.paramlist:
+            module_info.parameters = self._parse_parameter_list(module_ast.paramlist)
+        else:
+            module_info.parameters = {}
+            
+        # 解析模块内部的parameter声明
+        internal_params = self._parse_internal_parameters(module_ast)
+        module_info.parameters.update(internal_params)
+            
+        # 解析端口 - 传递整个模块AST
+        if module_ast.portlist:
+            module_info.ports = self._parse_port_list(
+                module_ast, module_info.parameters, instance_params
+            )
+            
+        return module_info
+    
+    def _parse_parameter_list(self, param_list) -> Dict[str, ParamInfo]:
+        """解析参数列表"""
+        parameters = {}
+        if not param_list:
+            return parameters
+            
+        for param in param_list.children():
+            if isinstance(param, Parameter):
+                param_value = self._ast_to_string(param.value) if param.value else ""
+                parameters[param.name] = ParamInfo(
+                    name=param.name, value=param_value, default_value=param_value
+                )
+        return parameters
+    
+    def _parse_internal_parameters(self, module_ast: ModuleDef) -> Dict[str, ParamInfo]:
+        """解析模块内部的parameter声明"""
+        parameters = {}
+        
+        if not hasattr(module_ast, 'items') or not module_ast.items:
+            return parameters
+            
+        # 遍历模块的items寻找parameter声明
+        for item in module_ast.items:
+            if isinstance(item, Parameter):
+                # 直接的Parameter节点
+                param_value = self._ast_to_string(item.value) if item.value else ""
+                parameters[item.name] = ParamInfo(
+                    name=item.name, value=param_value, default_value=param_value
+                )
+            elif isinstance(item, Decl):
+                # Decl节点可能包含Localparam
+                if hasattr(item, 'children'):
+                    for child in item.children():
+                        if isinstance(child, Parameter):
+                            param_value = self._ast_to_string(child.value) if child.value else ""
+                            parameters[child.name] = ParamInfo(
+                                name=child.name, value=param_value, default_value=param_value
+                            )
+                        elif isinstance(child, Localparam):
+                            # 处理localparam
+                            param_value = self._ast_to_string(child.value) if child.value else ""
+                            parameters[child.name] = ParamInfo(
+                                name=child.name, value=param_value, default_value=param_value
+                            )
+            elif hasattr(item, 'children'):
+                # 检查其他节点中的Parameter和Localparam
+                for child in item.children():
+                    if isinstance(child, Parameter):
+                        param_value = self._ast_to_string(child.value) if child.value else ""
+                        parameters[child.name] = ParamInfo(
+                            name=child.name, value=param_value, default_value=param_value
+                        )
+        
+        return parameters
+    
+    def _parse_port_list(self, module_ast: ModuleDef, module_params: Dict[str, ParamInfo],
+                        instance_params: Optional[Dict[str, str]] = None) -> List[Port]:
+        """解析端口列表 - 支持ANSI-C和传统Verilog两种端口声明风格"""
+        ports = []
+        
+        if not module_ast.portlist:
+            return ports
+        
+        # 首先尝试ANSI-C风格：端口信息直接在portlist中
+        ansi_style_ports = []
+        port_names_only = []
+        
+        for port_item in module_ast.portlist.children():
+            if isinstance(port_item, Ioport) and port_item.first:
+                # ANSI-C风格：端口有完整的方向和位宽信息
+                port_decl = port_item.first
+                if hasattr(port_decl, 'name') and isinstance(port_decl, (Input, Output, Inout)):
+                    # 获取位宽
+                    width_expr = "0"
+                    if hasattr(port_decl, 'width') and port_decl.width:
+                        width_expr = self._parse_width_expression(
+                            port_decl.width, module_params, instance_params
+                        )
+                    
+                    port = Port(
+                        name=port_decl.name,
+                        direction=port_decl.__class__.__name__.lower(),
+                        width=width_expr,
+                        width_value=self._calculate_width_value(width_expr)
+                    )
+                    ansi_style_ports.append(port)
+            else:
+                # 传统风格：尝试获取端口名 
+                # 忽略类型检查，因为可能是不同的AST节点类型
+                if hasattr(port_item, 'name') and getattr(port_item, 'name', None):  # type: ignore
+                    port_names_only.append(getattr(port_item, 'name'))  # type: ignore
+        
+        # 如果找到ANSI-C风格的端口，直接返回
+        if ansi_style_ports:
+            return ansi_style_ports
+        
+        # 否则使用传统风格：从items中查找端口声明
+        if port_names_only and hasattr(module_ast, 'items') and module_ast.items:
+            port_names_set = set(port_names_only)
+            
+            # items是一个tuple，直接遍历
+            for item in module_ast.items:
+                if isinstance(item, Decl):
+                    for decl_item in item.children():
+                        if isinstance(decl_item, (Input, Output, Inout)) and decl_item.name in port_names_set:
+                            # 获取位宽
+                            width_expr = "0"
+                            if hasattr(decl_item, 'width') and decl_item.width:
+                                width_expr = self._parse_width_expression(
+                                    decl_item.width, module_params, instance_params
+                                )
+                            
+                            port = Port(
+                                name=decl_item.name,
+                                direction=decl_item.__class__.__name__.lower(),
+                                width=width_expr,
+                                width_value=self._calculate_width_value(width_expr)
+                            )
+                            ports.append(port)
+        
+        return ports
+    
+    def _parse_width_expression(self, width_ast, module_params: Dict[str, ParamInfo],
+                               instance_params: Optional[Dict[str, str]] = None) -> str:
+        """解析位宽表达式"""
+        if width_ast is None:
+            return "0"
+            
+        width_str = self._ast_to_string(width_ast)
+        
+        # 参数替换 - 使用递归解析处理参数依赖
+        if module_params:
+            # 使用递归解析处理参数依赖关系
+            width_str = self._resolve_parameter_dependencies(width_str, module_params)
+        
+        # 实例参数替换
+        if instance_params:
+            for param_name, param_value in instance_params.items():
+                pattern = rf'\b{re.escape(param_name)}\b'
+                width_str = re.sub(pattern, str(param_value), width_str)
+        
+        # 移除外层方括号
+        if width_str.startswith('[') and width_str.endswith(']'):
+            width_str = width_str[1:-1]
+        
+        # 计算位宽表达式中的数学运算
+        width_str = self._simplify_width_expression(width_str)
+            
+        return width_str
+    
+    def _simplify_width_expression(self, width_expr: str) -> str:
+        """简化位宽表达式，计算其中的数学运算"""
+        if not width_expr or width_expr == "0":
+            return "0"
+            
+        # 先尝试处理整个表达式（包括条件表达式）
+        try:
+            if '?' in width_expr and ':' in width_expr:
+                # 检查是否为条件表达式 (condition ? true_val : false_val)
+                # 而不是位宽范围 [msb:lsb]
+                if not (width_expr.count(':') == 1 and '?' not in width_expr.split(':')[0]):
+                    # 这是条件表达式，尝试计算整个表达式
+                    result = self._eval_expression(width_expr)
+                    return str(result)
+        except:
+            pass
+            
+        # 处理常规情况
+        if ':' in width_expr and '?' not in width_expr:
+            # 处理 [msb:lsb] 格式
+            parts = width_expr.split(':')
+            if len(parts) == 2:
+                try:
+                    msb_val = self._eval_expression(parts[0].strip())
+                    lsb_val = self._eval_expression(parts[1].strip())
+                    return f"{msb_val}:{lsb_val}"
+                except:
+                    return width_expr
+        else:
+            # 单个表达式，尝试计算
+            try:
+                result = self._eval_expression(width_expr)
+                return str(result)
+            except:
+                return width_expr
+                
+        return width_expr
+    
+    def _resolve_parameter_dependencies(self, expr: str, parameters: Dict[str, ParamInfo], 
+                                       resolved_cache: Optional[Dict[str, str]] = None) -> str:
+        """递归解析参数依赖关系，确保依赖参数先被计算"""
+        if resolved_cache is None:
+            resolved_cache = {}
+        
+        # 如果表达式已经解析过，直接返回缓存结果
+        if expr in resolved_cache:
+            return resolved_cache[expr]
+        
+        # 检查表达式中是否包含参数引用
+        result_expr = expr
+        for param_name, param_info in parameters.items():
+            if param_name in result_expr:
+                # 递归解析依赖的参数
+                if param_name not in resolved_cache:
+                    # 先解析参数值本身的依赖
+                    resolved_param = self._resolve_parameter_dependencies(
+                        param_info.value, parameters, resolved_cache)
+                    
+                    # 尝试简化解析后的参数值
+                    try:
+                        simplified_param = self._simplify_width_expression(resolved_param)
+                        resolved_cache[param_name] = simplified_param
+                    except:
+                        resolved_cache[param_name] = resolved_param
+                
+                # 替换参数引用 - 使用边界匹配避免部分替换
+                pattern = rf'\b{re.escape(param_name)}\b'
+                result_expr = re.sub(pattern, resolved_cache[param_name], result_expr)
+        
+        # 缓存结果
+        resolved_cache[expr] = result_expr
+        return result_expr
+
+    def _calculate_width_value(self, width_expr: str) -> int:
+        """计算位宽数值 - 复用简化表达式的逻辑"""
+        if not width_expr or width_expr == "0":
+            return 1
+            
+        # 先简化表达式，然后计算位宽值
+        simplified = self._simplify_width_expression(width_expr)
+        
+        try:
+            if ':' in simplified:
+                parts = simplified.split(':')
+                if len(parts) == 2:
+                    msb = int(parts[0].strip())
+                    lsb = int(parts[1].strip())
+                    return abs(msb - lsb) + 1
+            else:
+                return int(simplified) + 1
+        except:
+            pass
+        return 1
+    
+    def _eval_expression(self, expr: str) -> int:
+        """安全计算表达式，支持条件表达式"""
+        expr = expr.strip()
+        
+        # 处理条件表达式 (condition)? value1 : value2
+        if '?' in expr and ':' in expr:
+            try:
+                return self._eval_conditional_expression(expr)
+            except:
+                pass
+        
+        try:
+            # 只允许安全的字符
+            if all(c in '0123456789+-*/(). ' for c in expr):
+                return int(eval(expr))
+            return int(expr)
+        except:
+            return 0
+    
+    def _eval_conditional_expression(self, expr: str) -> int:
+        """计算条件表达式 (condition)? value1 : value2"""
+        expr = expr.strip()
+        
+        # 找到最外层的 ? 和 :
+        question_pos = expr.find('?')
+        if question_pos == -1:
+            return self._eval_expression(expr)
+        
+        # 提取条件部分
+        condition_str = expr[:question_pos].strip()
+        remaining = expr[question_pos + 1:].strip()
+        
+        # 找到对应的冒号（需要考虑嵌套）
+        paren_count = 0
+        colon_pos = -1
+        
+        for i, c in enumerate(remaining):
+            if c == '(':
+                paren_count += 1
+            elif c == ')':
+                paren_count -= 1
+            elif c == ':' and paren_count == 0:
+                colon_pos = i
+                break
+        
+        if colon_pos == -1:
+            raise ValueError(f"Invalid conditional expression: {expr}")
+        
+        true_value_str = remaining[:colon_pos].strip()
+        false_value_str = remaining[colon_pos + 1:].strip()
+        
+        # 计算条件
+        condition_result = self._eval_condition(condition_str)
+        
+        # 根据条件返回相应的值
+        if condition_result:
+            return self._eval_expression(true_value_str)
+        else:
+            return self._eval_expression(false_value_str)
+    
+    def _eval_condition(self, condition_str: str) -> bool:
+        """计算条件表达式"""
+        condition_str = condition_str.strip()
+        
+        # 移除外层括号
+        if condition_str.startswith('(') and condition_str.endswith(')'):
+            condition_str = condition_str[1:-1].strip()
+        
+        # 处理比较运算符
+        for op in ['==', '!=', '<=', '>=', '<', '>']:
+            if op in condition_str:
+                parts = condition_str.split(op, 1)
+                if len(parts) == 2:
+                    left = self._eval_expression(parts[0].strip())
+                    right = self._eval_expression(parts[1].strip())
+                    
+                    if op == '==':
+                        return left == right
+                    elif op == '!=':
+                        return left != right
+                    elif op == '<=':
+                        return left <= right
+                    elif op == '>=':
+                        return left >= right
+                    elif op == '<':
+                        return left < right
+                    elif op == '>':
+                        return left > right
+        
+        # 如果没有比较运算符，尝试将表达式作为数值计算
+        try:
+            return self._eval_expression(condition_str) != 0
+        except:
+            return False
+    
+    def _ast_to_string(self, ast_node) -> str:
+        """将AST节点转换为字符串"""
+        if ast_node is None:
+            return ""
+        try:
+            codegen = ASTCodeGenerator()
+            return codegen.visit(ast_node)
+        except:
+            return str(ast_node)
+    
+    def _extract_modules_by_regex(self, rtl_file: str) -> List[str]:
+        """使用正则表达式从文件中提取模块名"""
+        try:
+            with open(rtl_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # 移除注释
+            content = re.sub(r'//.*?$', '', content, flags=re.MULTILINE)
+            content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
+            
+            # 查找模块定义
+            return re.findall(r'module\s+(\w+)\s*(?:#.*?)?\s*\(', content, re.DOTALL)
+        except Exception as e:
+            logger.error(f"Error reading file {rtl_file}: {e}")
+            return []

@@ -21,7 +21,7 @@ module uart_controller #(
     // UART Interface
     output                  tx,
     input                   rx,
-    output                  test_out,
+    output  [DATA_BITS-1:0]        test_out,
     // Interrupt
     output                  uart_irq
 );

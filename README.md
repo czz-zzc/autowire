@@ -1,119 +1,83 @@
-# Verilog SOC Integration Tool (AutoWire)
+# AutoWire v2.0
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-3.7%2B-blue.svg)](https://www.python.org/)
 
-Verilog自动连线工具，基于 YAML 配置文件自动生成top模块连线。支持协议信号自动映射、条件编译、参数化模块等高级特性。
+AutoWire v2.0 是一个基于 [PyVerilog](https://github.com/PyHDI/Pyverilog) 的 Verilog SOC 自动连线工具。它能够自动解析 Verilog 模块，根据配置文件进行协议信号匹配和端口连线，最终生成顶层集成模块。
 
-## 🎯 核心优势总结
+## 特性
 
-### 🚀 高效自动化
-- **零手工连线**: 基于端口名自动匹配，大幅减少手工连线工作
-- **协议感知**: 内置AHB/APB/AXI协议支持，通配符批量映射
-- **智能推断**: 自动识别顶层端口需求，无需手动指定
+- 🔧 **智能连线**: 支持基于协议信号的自动连线（AHB、AXI、APB等）
+- 📝 **灵活配置**: 使用 YAML 配置文件进行模块定义和连线配置
+- 🎯 **精确解析**: 基于 PyVerilog 进行准确的 Verilog 语法解析
+- 🔄 **增量生成**: 支持中间配置文件生成，便于调试和验证
+- 📊 **详细日志**: 提供完整的解析和连线过程日志
+- 🛠️ **参数化支持**: 支持模块参数化实例
 
-### 🛡️ 鲁棒性设计
-- **多格式支持**: 支持6种连接格式，满足各种设计需求
-- **错误检测**: 自动检测驱动冲突、位宽不匹配等常见错误
-- **容错处理**: 优雅处理语法错误，提供详细的修复建议
+## 安装要求
 
-### 🎨 代码美观
-- **精确对齐**: 生成的代码具有专业级的格式对齐
-- **可读性强**: 自动添加注释和分组，提高代码可维护性
-- **标准兼容**: 生成标准Verilog代码，兼容各种EDA工具
-
-### ⚡ 性能优化
-- **增量解析**: 智能缓存和懒加载，支持大型项目
-- **并行处理**: 多文件并行解析，提升处理速度
-- **内存友好**: 流式处理大文件，控制内存占用
-
-## 📁 项目结构
-
-```
-project/
-├── autowire.py          # 主脚本
-├── config.yaml          # 配置文件
-├── bounding.yaml        # 协议信号定义
-├── rtl/                 # RTL源文件目录
-│   ├── define.v         # 宏定义文件
-│   ├── cpu_core.v       # CPU模块
-│   ├── uart_controller.v# UART模块
-│   └── irqqqq.v         # 测试模块
-└── output/              # 输出目录
-    └── soc_top.v        # 生成的顶层文件
-```
-
-## �🚀 快速开始
-
-### 1. 基本使用
+- Python 3.7+
+- PyVerilog
+- PyYAML
 
 ```bash
-# 指定配置文件和输出目录
-python autowire.py -i ./vcn.yaml -b ./bounding.yaml -o output/
-
-# 启用调试模式
-python autowire.py -i ./vcn.yaml -b ./bounding.yaml -o output/ -d
+pip install pyverilog pyyaml
 ```
 
-### 2. 命令行参数
+## 快速开始
+
+### 1. 基本用法
 
 ```bash
-python autowire.py [选项]
-
-选项:
-  -i, --input     输入的YAML配置文件 (默认: vcn.yaml)
-  -o, --output    输出目录或.v文件路径 (默认: .)
-  -b, --bounding  协议信号定义文件 (默认: bounding.yaml)  
-  -d, --debug     启用调试输出
-  -h, --help      显示帮助信息
+python autowire.py -i vcn.yaml -o output/
 ```
 
-## 📝 配置文件格式
+### 2. 配置文件示例
 
-### 基本配置结构 (config.yaml)
+创建一个 YAML 配置文件（例如 `test.yaml`）：
 
 ```yaml
-top_module: soc_top
+# 顶层模块名称
+top_module: add_top
 
-# Define files (optional)  
-define_files:
-  - ./rtl/define.v
+# 宏定义文件（可选）
+define_files: 
+  - ./rtl/DWC_pcie_dm_cc_constants.v
+  - ./rtl/cxpl_defs.vh
+  - ./rtl/radm_defs.vh
 
-# Module definitions
+# RTL 模块文件
 rtl_path:
-  - ./rtl/cpu_core.v
-  - ./rtl/irqqqq.v
-  - ./rtl/uart_controller.v
+  - ./rtl/DWC_pcie_dm.v
+  - ./rtl/DW_axi_x2x.v
 
+# 模块实例化
 instances:
-  - module: cpu_core
-    name: u_cpu
+  - module: DWC_pcie_dm
+    name: u_DWC_pcie_dm
+  - module: DW_axi_x2x
+    name: u_DW_axi_x2x
     parameters:
-  - module: irqqqq
-    name: u_irqqqq
+      DATA_WIDTH: 64
+      ADDR_WIDTH: 32
 
-  - module: uart_controller
-    name: u_uart
-    parameters:
-      BAUD_RATE: 9600
-
-##sub_moduel con
+# 手动连线（可选）
 connections:
-  u_cpu.a_hready : hready_out
-  u_cpu.irq      : "{6'b0,irq[0],uart_irq}"
-  u_uart.hsel_ahb: 1'b1
-  u_cpu.test_in  : irq[1:0]
-  u_uart.test_out:
+  u_cpu.clk: sys_clk
+  u_uart.rst_n: sys_rst_n
 
-##signal group con
+# 协议信号连线（可选）
 bounding_con:
   - ahb:
-      u_cpu.a_*    : cpu_ahbm_*
-      u_uart.*_ahb  :  cpu_ahbm_*
-
+      u_cpu.a_*: cpu_ahbm_*
+      u_uart.*_ahb: uart_ahb_*
+  - axi:
+      u_dma.m_*: dma_axi_*
 ```
 
-### 协议信号定义 (bounding.yaml)
+### 3. 协议信号定义
+
+创建协议信号定义文件 `bounding.yaml`：
 
 ```yaml
 protocol_signals:
@@ -130,310 +94,336 @@ protocol_signals:
     - hsel
     - hready_out
   
-  apb:
-    - paddr
-    - pwdata
-    - prdata
-    - pwrite
-    - psel
-    - penable
-    - pready
-    - pslverr
-    - pprot
-    - pstrb
-  
-  axi
-    ...
-
+  axi:
+    # AW channel
+    - awaddr
+    - awlen
+    - awsize
+    - awburst
+    - awlock
+    - awcache
+    - awprot
+    - awvalid
+    - awready
+    - awid
+    - awuser
+    # W channel  
+    - wdata
+    - wstrb
+    - wlast
+    - wvalid
+    - wready
+    # R channel
+    - rdata
+    - rresp
+    - rlast
+    - rvalid
+    - rready
+    - rid
+    # B channel
+    - bresp
+    - bvalid
+    - bready
+    - bid
+    # AR channel
+    - araddr
+    - arlen
+    - arsize
+    - arburst
+    - arlock
+    - arcache
+    - arprot
+    - arvalid
+    - arready
+    - arid
 ```
 
-## 🏗️ 脚本实现思路
+## 工作原理
 
-### 核心架构设计
+AutoWire v2.0 采用模块化架构，主要包含以下组件：
 
-AutoWire采用模块化设计，主要包含以下核心组件：
+### 核心模块
 
-#### 1. 解析器模块 (VerilogParser)
-- **功能**: 解析Verilog RTL文件和宏定义
-- **核心算法**:
-  - 使用正则表达式解析模块定义、端口声明和参数
-  - 支持条件编译指令 (`ifdef/ifndef/else/endif`)
-  - 递归处理嵌套的条件编译结构
-  - 参数化解析：结合实例参数和模块默认参数
+1. **Generator (`generator.py`)**: 主控制器，协调各模块工作流程
+2. **Config Manager (`config_manager.py`)**: 配置文件加载和管理
+3. **Parser (`parser.py`)**: 基于 PyVerilog 的 Verilog 代码解析
+4. **Connection Manager (`connection_manager.py`)**: 连线逻辑处理
+5. **Code Generator (`code_generator.py`)**: 顶层模块代码生成
 
-#### 2. 生成器模块 (VerilogGenerator)
-- **功能**: 管理整个生成流程和配置
-- **工作流程**:
-  1. **配置加载**: 解析YAML配置文件
-  2. **模块发现**: 扫描RTL文件，建立模块名->文件路径映射
-  3. **实例解析**: 根据配置创建模块实例，包含参数化处理
-  4. **连线处理**: 解析手动连线和协议映射
-  5. **自动连线**: 基于端口名匹配的智能连线
-  6. **代码生成**: 生成格式化的顶层模块
+### 工作流程
 
-### 生成流程详解
+1. **配置加载**: 解析 YAML 配置文件和协议信号定义
+2. **模块解析**: 使用 PyVerilog 解析 RTL 文件，提取端口和参数信息
+3. **连线处理**: 
+   - 处理协议信号连线（基于模式匹配）
+   - 处理手动连线配置
+   - 执行自动连线（同名信号匹配）
+4. **代码生成**: 生成顶层模块 Verilog 代码
 
-#### Phase 1: 解析阶段
-1. **配置加载**: 解析YAML，提取模块、实例和连线配置
-2. **宏定义解析**: 处理 `define.v` 文件，建立宏定义表
-3. **模块发现**: 扫描RTL文件，提取所有模块名称
-4. **实例参数化**: 结合实例参数解析具体的模块端口信息
+### 数据结构
 
-#### Phase 2: 连线阶段  
-1. **手动连线**: 处理YAML中显式指定的connections
-2. **协议映射**: 根据bounding_con配置生成协议信号连线
-3. **自动连线**: 对未连接端口执行同名匹配算法
-4. **连线验证**: 检查驱动冲突和位宽兼容性
+- `Port`: 端口信息（名称、方向、位宽等）
+- `Instance`: 实例信息（模块名、实例名、参数等）
+- `WireInfo`: 线网信息（输入输出连接状态）
+- `ModuleInfo`: 模块信息（端口列表、参数列表等）
 
-#### Phase 3: 生成阶段
-1. **顶层端口生成**: 将未完全连接的信号提升为顶层端口
-2. **内部信号声明**: 生成内部wire声明
-3. **实例化代码**: 生成对齐格式的模块实例化
-4. **文件输出**: 写入最终的Verilog文件
+## 命令行选项
 
-### 优化策略
+```
+usage: autowire.py [-h] [-i INPUT] [-o OUTPUT] [-b BOUNDING] [-d] [--version]
 
-#### 1. 性能优化
-- **懒加载**: 按需解析RTL文件，避免全量加载
-- **缓存机制**: 缓存解析结果，避免重复计算
-- **并行处理**: 对独立的RTL文件并行解析
+AutoWire v2.0 - Verilog SOC Integration Tool (Refactored)
 
-#### 2. 内存优化
-- **流式处理**: 大文件采用流式读取，降低内存占用
-- **对象池**: 复用端口和连线对象，减少GC压力
+optional arguments:
+  -h, --help            show this help message and exit
+  -i INPUT, --input INPUT
+                        Input YAML configuration file (default: vcn.yaml)
+  -o OUTPUT, --output OUTPUT
+                        Output directory or .v/.sv file path (default: .)
+  -b BOUNDING, --bounding BOUNDING
+                        Protocol signals definition file (default: bounding.yaml)
+  -d, --debug           Enable debug output
+  --version             show program version number and exit
+```
 
-#### 3. 代码质量
-- **类型提示**: 全面使用Python类型注解
-- **错误处理**: 完善的异常处理和用户友好的错误信息
-- **单元测试**: 核心算法的完整测试覆盖
+## 使用示例
 
-## 📖 详细功能说明
+### 示例 1: 基本 SOC 集成
 
-### 1. 自动连线机制
+```bash
 
-工具会自动分析所有模块的端口，对于同名端口进行自动连线：
+# 指定配置文件和输出目录
+python autowire.py -i soc_config.yaml -b bounding.yaml -o build/
 
-- **输出到输入**: 一个模块的输出端口连接到另一个模块的同名输入端口
-- **多输入共享**: 多个模块的同名输入端口可以连接到同一个信号源
-- **顶层端口生成**: 未连接的端口自动成为顶层模块的端口
+# 指定配置文件、bounding信号、输出目录
+python autowire.py -i soc_config.yaml -b bounding.yaml -o build/
 
-### 2. 连接类型支持
+# 指定输出文件
+python autowire.py -i soc_config.yaml -b bounding.yaml -o build/soc_top.v
 
-AutoWire支持多种连接类型，满足不同的设计需求：
+# 开启调试模式
+python autowire.py -i soc_config.yaml -b bounding.yaml -o build/soc_top.v -d
+```
 
-#### 2.1 普通信号连接
+### 示例 2: 自定义协议信号
+
+```bash
+# 使用自定义协议信号定义文件
+python autowire.py -i config.yaml -b custom_protocols.yaml -o output/
+```
+
+## 配置文件详解
+
+### 主配置文件结构
+
 ```yaml
+# 必需: 顶层模块名
+top_module: soc_top
+
+# 可选: 宏定义文件
+define_files:
+  - ./includes/defines.vh
+  - ./includes/parameters.vh
+
+# 必需: RTL 文件列表
+rtl_path:
+  - ./rtl/cpu_core.v
+  - ./rtl/uart_controller.v
+  - ./rtl/memory_controller.sv
+
+# 必需: 实例化配置
+instances:
+  - module: cpu_core        # 模块名
+    name: u_cpu            # 实例名
+    parameters:            # 可选: 参数覆盖
+      CACHE_SIZE: 1024
+      DATA_WIDTH: 32
+
+# 可选: 手动连线
 connections:
-  u_cpu.data_out: cpu_data
-  u_mem.data_in: cpu_data    # 同一信号的多点连接
+  u_cpu.clk: sys_clk                    # 简单连线
+  u_cpu.irq: "{7'b0, uart_irq}"         # 拼接信号
+  u_uart.enable: 1'b1                   # 常数连接
+
+# 可选: 协议信号连线
+bounding_con:
+  - ahb:
+      u_cpu.ahb_*: cpu_ahb_*            # 通配符匹配
+  - axi:
+      u_dma.m_axi_*: dma_*
 ```
 
-#### 2.2 常数连接  
-```yaml
-connections:
-  u_module.enable: 1'b1      # 单比特常数
-  u_module.config: 8'hFF     # 多比特十六进制常数
-  u_module.reset: 1'b0       # 二进制常数
-  u_module.data: 32'd12345   # 十进制常数
-```
+### 协议信号定义文件
 
-#### 2.3 悬空连接
-```yaml
-connections:
-  u_module.unused_port:      # 空值悬空
-  u_module.debug_out: null   # 显式null悬空  
-```
+协议信号定义文件用于定义标准总线协议的信号列表，支持的协议包括：
 
-#### 2.4 位选择连接 (NEW!)
-```yaml
-connections:
-  u_cpu.irq_line: irq[0]     # 单比特选择
-  u_cpu.status: flag[7]      # 高位选择
-```
+- **AHB**: ARM Advanced High-performance Bus
+- **AXI**: ARM Advanced eXtensible Interface  
+- **APB**: ARM Advanced Peripheral Bus
 
-#### 2.5 范围选择连接 (NEW!)
-```yaml
-connections:
-  u_cpu.data_low: bus_data[7:0]    # 低8位
-  u_cpu.data_high: bus_data[15:8]  # 高8位
-  u_mem.addr: cpu_addr[31:2]       # 字地址对齐
-```
+## 高级功能
 
-#### 2.6 拼接连接
-```yaml
-connections:
-  # 将多个信号拼接成一个更宽的信号
-  u_cpu.interrupt: "{6'b0,uart_irq,timer_irq}"
-  u_display.rgb: "{red[7:0],green[7:0],blue[7:0]}"
-```
+### 通配符连线
 
-### 3. 协议信号映射
-
-支持通配符模式的协议信号自动映射：
+支持使用通配符进行批量连线：
 
 ```yaml
 bounding_con:
-  ahb:
-    u_cpu.m_ahb_*: cpu_ahb_*    # m_ahb_haddr -> cpu_ahb_haddr
-    u_mem.s_ahb_*: mem_ahb_*    # s_ahb_hrdata -> mem_ahb_hrdata
+  - ahb:
+      u_master.ahb_*: master_ahb_*      # 匹配所有 ahb_ 开头的端口
+      u_slave.*_ahb: slave_ahb_*        # 匹配所有 _ahb 结尾的端口
 ```
 
-### 4. 条件编译支持
+### 参数化实例
 
-工具能正确解析 Verilog 中的条件编译指令：
-
-```verilog
-`ifdef DEBUG_MODE
-    input  wire debug_en,
-`endif
-    input  wire clk,
-    input  wire rst_n
-```
-
-### 5. 参数化模块
-
-支持带参数的模块实例化：
+支持为实例指定参数：
 
 ```yaml
 instances:
-  - name: u_fifo
-    module: async_fifo
+  - module: memory_controller
+    name: u_memory
     parameters:
-      DATA_WIDTH: 32
-      ADDR_WIDTH: 4
+      ADDR_WIDTH: 32
+      DATA_WIDTH: 64
+      CACHE_LINES: 256
 ```
-### 6. 代码对齐
+
+### 信号拼接
+
+支持复杂的信号连接表达式：
+
+```yaml
+connections:
+  u_cpu.interrupt: "{irq_timer, irq_uart, 6'b0}"
+  u_mux.select: "2'b01"
+  u_module.data_out:                    # 悬空连接
+```
+
+## 输出文件
+
+AutoWire 会生成标准的 Verilog 顶层模块文件，包含：
+
+1. **模块声明**: 包含所有外部端口
+2. **线网声明**: 内部连接线声明
+3. **实例化**: 所有子模块的实例化代码
+4. **注释**: 自动生成的时间戳和工具信息
+
+生成的代码示例：
 
 ```verilog
 // -----------------------------------------------------------------------------
 // File      : soc_top.v
-// Brief     : Auto-generated by autowire.py
-// Author    : czz
-// Date      : 2025-08-22 16:53:16
+// Brief     : Auto-generated by autowire.py v2.0
+// Author    : AutoWire
+// Date      : 2025-08-24 21:35:09
 // -----------------------------------------------------------------------------
 
 module soc_top(
-    // u_cpu ports
+    // External ports
     input          clk,
     input          rst_n,
-    output  [2:0]  cpu_ahbm_hsize,
-    output  [2:0]  cpu_ahbm_hburst,
-    input          hready_out,
-    input          debug_mode,
+    output  [31:0] data_out
+);
 
-    // u_uart ports
-    output         cpu_ahbm_hready_out,
-    output         tx,
-    input          rx
-)
-
-wire  [15:0]  cpu_ahbm_haddr ;
-wire  [31:0]  cpu_ahbm_hrdata;
-wire          cpu_ahbm_hresp ;
-wire  [1:0]   cpu_ahbm_htrans;
-wire  [31:0]  cpu_ahbm_hwdata;
-wire          cpu_ahbm_hwrite;
-wire  [1:0]   irq            ;
-wire          uart_irq       ;
+// Internal wires
+wire  [15:0]  cpu_addr;
+wire  [31:0]  cpu_data;
+wire          cpu_valid;
 
 // Instance: u_cpu (cpu_core)
 cpu_core u_cpu (
-    .clk            (clk                   ),    // input 
-    .rst_n          (rst_n                 ),    // input 
-    .a_haddr        (cpu_ahbm_haddr        ),    // output [15:0]
-    .a_hwdata       (cpu_ahbm_hwdata       ),    // output [31:0]
-    .a_hrdata       (cpu_ahbm_hrdata       ),    // input  [31:0]
-    .a_hwrite       (cpu_ahbm_hwrite       ),    // output
-    .a_htrans       (cpu_ahbm_htrans       ),    // output [1:0]
-    .a_hsize        (cpu_ahbm_hsize        ),    // output [2:0]
-    .a_hburst       (cpu_ahbm_hburst       ),    // output [2:0]
-    .a_hready       (hready_out            ),    // input 
-    .a_hresp        (cpu_ahbm_hresp        ),    // input 
-    .debug_mode     (debug_mode            ),    // input 
-    .test_in        (irq[1:0]              ),    // input  [1:0]
-    .irq            ({6'b0,irq[0],uart_irq})     // input  [7:0]
+    .clk        (clk        ),
+    .rst_n      (rst_n      ),
+    .addr       (cpu_addr   ),
+    .data       (cpu_data   ),
+    .valid      (cpu_valid  )
 );
 
-// Instance: u_irqqqq (irqqqq)
-irqqqq u_irqqqq (
-    .clk            (clk                   ),    // input 
-    .rst_n          (rst_n                 ),    // input 
-    .irq            (irq                   )     // output [1:0]
-);
-
-// Instance: u_uart (uart_controller)
-uart_controller #(
-    .BAUD_RATE(9600)
-) u_uart (
-    .clk            (clk                   ),    // input 
-    .rst_n          (rst_n                 ),    // input 
-    .haddr_ahb      (cpu_ahbm_haddr        ),    // input  [15:0]
-    .hwdata_ahb     (cpu_ahbm_hwdata       ),    // input  [31:0]
-    .hrdata_ahb     (cpu_ahbm_hrdata       ),    // output [31:0]
-    .hwrite_ahb     (cpu_ahbm_hwrite       ),    // input 
-    .htrans_ahb     (cpu_ahbm_htrans       ),    // input  [1:0]
-    .hsel_ahb       (1'b1                  ),    // input 
-    .hready_out_ahb (cpu_ahbm_hready_out   ),    // output
-    .hresp_ahb      (cpu_ahbm_hresp        ),    // output
-    .tx             (tx                    ),    // output
-    .rx             (rx                    ),    // input 
-    .test_out       (                      ),    // output
-    .uart_irq       (uart_irq              )     // output
+// Instance: u_memory (memory_controller)
+memory_controller #(
+    .ADDR_WIDTH(16),
+    .DATA_WIDTH(32)
+) u_memory (
+    .clk        (clk        ),
+    .rst_n      (rst_n      ),
+    .addr       (cpu_addr   ),
+    .data       (cpu_data   ),
+    .valid      (cpu_valid  ),
+    .data_out   (data_out   )
 );
 
 endmodule
 ```
 
-## ⚠️ 注意事项
+## 故障排除
 
-1. **文件路径**: 确保配置文件中的所有路径都是正确的
-2. **模块名匹配**: RTL文件中的模块名必须与配置中的模块名一致
-3. **端口方向**: 确保连接的端口方向兼容(输出->输入)
-4. **位宽匹配**: 工具会检查并警告位宽不匹配的情况
-5. **参数覆盖**: 实例参数会覆盖模块的默认参数值
+### 常见问题
 
-## 🤝 贡献指南
+1. **找不到模块定义**
+   - 检查 `rtl_path` 中的文件路径是否正确
+   - 确认模块名与文件中定义的模块名一致
 
-欢迎贡献代码、报告问题或提出改进建议！
+2. **协议信号不匹配**
+   - 检查 `bounding.yaml` 中的协议信号定义
+   - 验证端口名称是否包含协议信号名
 
-1. Fork 项目
-2. 创建特性分支 (`git checkout -b feature/amazing-feature`)
-3. 提交更改 (`git commit -m 'Add amazing feature'`)
-4. 推送分支 (`git push origin feature/amazing-feature`)
-5. 创建 Pull Request
+3. **解析错误**
+   - 使用 `-d` 选项开启调试模式查看详细日志
+   - 检查 Verilog 语法是否正确
 
-## 📋 系统要求
+### 调试模式
 
-- Python 3.7 或更高版本
-- PyYAML 库
+使用 `-d` 选项可以查看详细的执行过程：
 
 ```bash
-pip install PyYAML
+python autowire.py -i config.yaml -o output/ -d
 ```
 
-## 📄 许可证
+调试模式下会显示：
+- 文件解析过程
+- 端口匹配详情
+- 连线生成信息
+- 中间配置文件路径
 
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
+## 项目结构
 
-## 🔗 相关链接
+```
+autowire-master/
+├── autowire.py              # 主入口脚本
+├── bounding.yaml           # 协议信号定义
+├── test.yaml              # 示例配置文件
+├── vcn.yaml               # 另一个配置文件示例
+├── LICENSE                # MIT 许可证
+├── src/                   # 核心源代码
+│   ├── __init__.py
+│   ├── generator.py       # 主生成器
+│   ├── config_manager.py  # 配置管理
+│   ├── parser.py          # Verilog解析器
+│   ├── connection_manager.py  # 连线管理
+│   ├── code_generator.py  # 代码生成
+│   ├── data_structures.py # 数据结构定义
+│   └── logger.py          # 日志管理
+├── rtl/                   # RTL 文件目录
+└── test_output_v2/        # 输出示例
+```
 
-- [Python官网](https://www.python.org/)
-- [PyYAML文档](https://pyyaml.org/)
-- [Verilog标准](https://ieeexplore.ieee.org/document/1620780)
+## 贡献
 
-## 📞 联系方式
+欢迎提交 Issue 和 Pull Request！
 
-如有问题或建议，请通过以下方式联系：
+## 许可证
 
-- 创建 [Issue](../../issues)
-- 发送邮件至: [2252165831@qq.com]
+本项目基于 MIT 许可证开源。详见 [LICENSE](LICENSE) 文件。
+
+## 更新日志
+
+### v2.0.0 (重构版本)
+- 完全重构代码架构，提高可维护性
+- 优化协议信号匹配算法
+- 增强错误处理和日志输出
+- 支持更灵活的配置选项
+- 改进代码生成质量
 
 ---
 
-**AutoWire** - 让 Verilog SOC 集成变得简单高效！ 🚀
-
-
-
-
-
-
+**技术支持**: 如有问题请提交 GitHub Issue
