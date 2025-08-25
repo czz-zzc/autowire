@@ -298,9 +298,8 @@ uart_controller #(
 endmodule
 ```
 
-## 故障排除
 
-### 常见问题
+## 常见问题
 
 1. **找不到模块定义**
    - 检查 `rtl_path` 中的文件路径是否正确
@@ -319,7 +318,7 @@ endmodule
 使用 `-d` 选项可以查看详细的执行过程：
 
 ```bash
-python autowire.py -i config.yaml -o output/ -d
+autowire.py -i ./vcn.yaml -b bounding.yaml -o ./out -d
 ```
 
 调试模式下会显示：
@@ -327,6 +326,49 @@ python autowire.py -i config.yaml -o output/ -d
 - 端口匹配详情
 - 连线生成信息
 - 中间配置文件路径
+
+#### DEBUG信息示例
+```
+python autowire.py -i ./vcn.yaml -b bounding.yaml -o ./out -d
+
+2025-08-25 15:38:25 - INFO    - src.generator          - Starting SOC generation with new architecture...
+2025-08-25 15:38:25 - INFO    - src.generator          - Loading configurations...
+2025-08-25 15:38:25 - INFO    - src.config_manager     - Loaded configuration from ./vcn.yaml
+2025-08-25 15:38:25 - INFO    - src.config_manager     - Loaded protocol signals from D:\work\autowire\bounding.yaml
+2025-08-25 15:38:25 - INFO    - src.generator          - Parsing phase...
+2025-08-25 15:38:25 - INFO    - src.parser             - Registered 1 define files
+2025-08-25 15:38:25 - INFO    - src.generator          - Parsed 0 global defines
+2025-08-25 15:38:25 - INFO    - src.generator          - Found 3 modules in RTL files
+Generating LALR tables
+WARNING: 183 shift/reduce conflicts
+2025-08-25 15:38:26 - INFO    - src.parser             - Successfully parsed module cpu_core with 14 ports
+Generating LALR tables
+WARNING: 183 shift/reduce conflicts
+2025-08-25 15:38:28 - INFO    - src.parser             - Successfully parsed module irqqqq with 3 ports
+Generating LALR tables
+WARNING: 183 shift/reduce conflicts
+2025-08-25 15:38:29 - INFO    - src.parser             - Successfully parsed module uart_controller with 14 ports
+2025-08-25 15:38:29 - INFO    - src.generator          - Connection phase...
+2025-08-25 15:38:29 - INFO    - src.connection_manager - Processing protocol connections...
+2025-08-25 15:38:29 - INFO    - src.connection_manager - Generated 17 protocol connections
+2025-08-25 15:38:29 - INFO    - src.config_manager     - Created intermediate YAML file: D:\work\autowire\out\vcn_intermediate.yaml
+2025-08-25 15:38:30 - INFO    - src.config_manager     - Loaded configuration from D:\work\autowire\out\vcn_intermediate.yaml
+2025-08-25 15:38:30 - INFO    - src.connection_manager - Processing 20 manual connections
+2025-08-25 15:38:30 - WARNING - src.connection_manager - Input width mismatch for irq: 8 vs 2
+2025-08-25 15:38:30 - INFO    - src.connection_manager - Starting auto-connection of unconnected ports
+2025-08-25 15:38:30 - INFO    - src.connection_manager - Auto-connection completed: 31/31 ports connected
+2025-08-25 15:38:30 - INFO    - src.connection_manager - Total wires in wire_set: 17
+2025-08-25 15:38:30 - INFO    - src.generator          - Code generation phase...
+2025-08-25 15:38:30 - INFO    - src.code_generator     - Generating top-level ports in instance and port definition order
+2025-08-25 15:38:30 - INFO    - src.code_generator     - Generated 9 top-level ports
+2025-08-25 15:38:30 - INFO    - src.code_generator     - Generating top module to ./out\soc_top.v
+2025-08-25 15:38:30 - WARNING - src.code_generator     - Width mismatch for wire irq: input=8, output=2, using max=8
+2025-08-25 15:38:30 - WARNING - src.code_generator     - Width mismatch for wire uart_irq: input=8, output=1, using max=8
+2025-08-25 15:38:30 - INFO    - src.code_generator     - Successfully generated ./out\soc_top.v
+2025-08-25 15:38:30 - INFO    - src.generator          - Debug mode: keeping intermediate file D:\work\autowire\out\vcn_intermediate.yaml
+2025-08-25 15:38:30 - INFO    - src.generator          - Generation completed successfully!
+2025-08-25 15:38:30 - INFO    - __main__               - AutoWire v2.0 completed successfully!
+```
 
 ## 项目结构
 
@@ -370,6 +412,7 @@ autowire-master/
 ---
 
 **技术支持**: 如有问题请提交 GitHub Issue
+
 
 
 
