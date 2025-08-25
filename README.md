@@ -82,7 +82,7 @@ bounding_con:
 
 ### 3. 协议信号定义
 
-创建协议信号定义文件 `bounding.yaml`：
+创建协议信号定义文件 `bounding.yaml(默认即可)`：
 
 ```yaml
 protocol_signals:
@@ -105,42 +105,7 @@ protocol_signals:
     - awlen
     - awsize
     - awburst
-    - awlock
-    - awcache
-    - awprot
-    - awvalid
-    - awready
-    - awid
-    - awuser
-    # W channel  
-    - wdata
-    - wstrb
-    - wlast
-    - wvalid
-    - wready
-    # R channel
-    - rdata
-    - rresp
-    - rlast
-    - rvalid
-    - rready
-    - rid
-    # B channel
-    - bresp
-    - bvalid
-    - bready
-    - bid
-    # AR channel
-    - araddr
-    - arlen
-    - arsize
-    - arburst
-    - arlock
-    - arcache
-    - arprot
-    - arvalid
-    - arready
-    - arid
+    ...
 ```
 
 ## 工作原理
@@ -412,3 +377,4 @@ autowire-master/
 ---
 
 **技术支持**: 如有问题请提交 GitHub Issue
+
