@@ -50,6 +50,7 @@ rtl_path:
   - ./autowire/rtl/cpu_core.v
   - ./autowire/rtl/uart_controller.v
 
+# inst declare
 instances:
   - module: cpu_core
     name: u_cpu
@@ -377,4 +378,5 @@ autowire-master/
 ---
 
 **技术支持**: 如有问题请提交 GitHub Issue
+
 
