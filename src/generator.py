@@ -131,13 +131,24 @@ class AutoWireGenerator:
         # 3. 解析实例配置
         instances_config = self.config_manager.get_instances_config()
         for inst_config in instances_config:
+            # 确保参数值都是字符串类型
+            parameters = {}
+            raw_parameters = inst_config.get('parameters', {})
+            # 处理YAML中parameters为None的情况
+            if raw_parameters is None:
+                raw_parameters = {}
+            for param_name, param_value in raw_parameters.items():
+                parameters[param_name] = str(param_value)  # 转换为字符串
+                
             instance = Instance(
                 module_name=inst_config['module'],
                 instance_name=inst_config['name'],
-                parameters=inst_config.get('parameters', {})
+                parameters=parameters
             )
             self.instances.append(instance)
             logger.debug(f"Created instance: {instance.instance_name} ({instance.module_name})")
+            if parameters:
+                logger.debug(f"  Parameters: {parameters}")
             
         # 4. 解析实例对应的模块详细信息
         for instance in self.instances:

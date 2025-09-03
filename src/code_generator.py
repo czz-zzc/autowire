@@ -59,11 +59,13 @@ class VerilogCodeGenerator:
                             direction="input",
                             width=wire_info.input_width,
                             width_value=wire_info.input_width_value,
-                            source_instance=instance.instance_name
+                            is_array=wire_info.is_array,
+                            array_size=wire_info.array_size,
+                            source_instance=wire_info.source_instance if wire_info.source_instance else instance.instance_name
                         )
                         self.top_ports.append(top_port)
                         added_ports.add(wire_name)
-                        logger.debug(f"Added top input port: {wire_name} from {instance.instance_name}")
+                        logger.debug(f"Added top input port: {wire_name} from {instance.instance_name}, array: {wire_info.is_array}")
                         
                     # 只有输出端，需要输出到顶层
                     elif not wire_info.has_input and wire_info.has_output:
@@ -72,11 +74,14 @@ class VerilogCodeGenerator:
                             direction="output", 
                             width=wire_info.output_width,
                             width_value=wire_info.output_width_value,
-                            source_instance=instance.instance_name
+                            is_array=wire_info.is_array,
+                            array_size=wire_info.array_size,
+                            source_instance=wire_info.source_instance if wire_info.source_instance else instance.instance_name
                         )
                         self.top_ports.append(top_port)
                         added_ports.add(wire_name)
-                        logger.debug(f"Added top output port: {wire_name} from {instance.instance_name}")
+                        logger.debug(f"Added top output port: {wire_name} from {instance.instance_name}, array: {wire_info.is_array}")
+                        
                         
         # 处理剩余的wire_set中未处理的项
         remaining_wires = []
@@ -89,20 +94,24 @@ class VerilogCodeGenerator:
                     name=wire_name,
                     direction="input",
                     width=wire_info.input_width,
-                    width_value=wire_info.input_width_value
+                    width_value=wire_info.input_width_value,
+                    is_array=wire_info.is_array,
+                    array_size=wire_info.array_size
                 )
                 remaining_wires.append(top_port)
-                logger.debug(f"Added remaining top input port: {wire_name}")
+                logger.debug(f"Added remaining top input port: {wire_name}, array: {wire_info.is_array}")
                 
             elif not wire_info.has_input and wire_info.has_output:
                 top_port = Port(
                     name=wire_name,
                     direction="output",
                     width=wire_info.output_width,
-                    width_value=wire_info.output_width_value
+                    width_value=wire_info.output_width_value,
+                    is_array=wire_info.is_array,
+                    array_size=wire_info.array_size
                 )
                 remaining_wires.append(top_port)
-                logger.debug(f"Added remaining top output port: {wire_name}")
+                logger.debug(f"Added remaining top output port: {wire_name}, array: {wire_info.is_array}")
                 
         self.top_ports.extend(remaining_wires)
         logger.info(f"Generated {len(self.top_ports)} top-level ports")
@@ -183,13 +192,20 @@ class VerilogCodeGenerator:
             # 格式化端口声明
             direction = port.direction.ljust(max_direction_width)
             
+            # 处理位宽
+            width_part = ""
             if port.width and port.width != "0" and port.width != "0:0":
                 width_part = f"[{port.width}]".ljust(max_width_expr_width)
-                port_decl = f"    {direction}  {width_part}  {port.name}"
             else:
                 width_part = "".ljust(max_width_expr_width)
-                port_decl = f"    {direction}  {width_part}  {port.name}"
-                
+            
+            # 处理数组维度
+            array_part = ""
+            if hasattr(port, 'is_array') and port.is_array and hasattr(port, 'array_size') and port.array_size:
+                array_part = f" {port.array_size}"
+            
+            port_decl = f"    {direction}  {width_part}  {port.name}{array_part}"
+
             if i < len(self.top_ports) - 1:
                 port_decl += ","
                 
@@ -222,21 +238,38 @@ class VerilogCodeGenerator:
         if not internal_wires:
             return []
             
-        # 计算对齐宽度
+        # 计算对齐宽度 - 需要考虑数组维度
         max_width_len = max(len(f"[{width}]" if width and width != "0" else "") 
                            for _, width in internal_wires)
-        max_wire_name_len = max(len(wire_name) for wire_name, _ in internal_wires)
+        
+        # 计算带数组维度的总长度，用于信号名对齐
+        max_total_len = 0
+        for wire_name, width_expr in internal_wires:
+            wire_info = self.wire_set[wire_name]
+            total_name_len = len(wire_name)
+            if wire_info.is_array and wire_info.array_size:
+                total_name_len += len(f" {wire_info.array_size}")
+            max_total_len = max(max_total_len, total_name_len)
         
         wire_lines = []
         for wire_name, width_expr in sorted(internal_wires):
+            wire_info = self.wire_set[wire_name]  # 获取完整的wire信息
+            
             if width_expr and width_expr != "0":
                 width_part = f"[{width_expr}]".ljust(max_width_len)
-                wire_name_part = wire_name.ljust(max_wire_name_len)
-                wire_decl = f"wire  {width_part}  {wire_name_part};"
             else:
                 width_part = "".ljust(max_width_len)
-                wire_name_part = wire_name.ljust(max_wire_name_len)
-                wire_decl = f"wire  {width_part}  {wire_name_part};"
+            
+            # 构建信号名部分（包含数组维度）
+            signal_part = wire_name
+            if wire_info.is_array and wire_info.array_size:
+                signal_part += f" {wire_info.array_size}"
+            
+            # 对齐信号名部分
+            signal_part_aligned = signal_part.ljust(max_total_len)
+            
+            # 构建完整的wire声明
+            wire_decl = f"wire  {width_part}  {signal_part_aligned};"
             wire_lines.append(wire_decl)
             
         return wire_lines
@@ -341,9 +374,12 @@ class VerilogCodeGenerator:
             # 生成注释
             direction_aligned = port.direction.ljust(alignment['direction_len'])
             width_info = f"[{port.width}]" if port.width and port.width != "0" and port.width != "0:0" else ""
+            array_info = f" {port.array_size}" if port.is_array and port.array_size else ""
             comment = f"// {direction_aligned}"
             if width_info:
                 comment += f" {width_info}"
+            if array_info:
+                comment += array_info
                 
             conn_line = f"    .{port_name_aligned} ({connection_aligned})"
             if i < len(instance.ports) - 1:

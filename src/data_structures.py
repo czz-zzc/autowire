@@ -58,6 +58,9 @@ class WireInfo:
     output_width: str = ""     # 输出端口位宽
     input_width_value: int = 0 # 输入端口位宽数值
     output_width_value: int = 0 # 输出端口位宽数值
+    is_array: bool = False     # 是否为数组信号
+    array_size: str = ""       # 数组维度表达式
+    source_instance: str = ""  # 来源实例名称（用于数组信息）
 
 
 @dataclass

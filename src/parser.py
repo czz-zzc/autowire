@@ -116,11 +116,69 @@ class PyVerilogParser:
             except Exception as e:
                 logger.warning(f"Error reading define file {define_file}: {e}")
         
-        # 添加RTL文件内容
+        # 添加RTL文件内容并进行端口格式标准化
         with open(file_path, 'r', encoding='utf-8') as f:
-            combined_content += f.read()
+            rtl_content = f.read()
+            # 标准化端口声明格式
+            rtl_content = self._normalize_port_declarations(rtl_content)
+            combined_content += rtl_content
             
         return combined_content
+    
+    def _normalize_port_declarations(self, content: str) -> str:
+        """标准化端口声明格式
+        专门处理无位宽的二维数组端口声明:
+        将 input        csr_desc_enable             [DMA_NUM_DESC-1:0],
+        转换为 input    [DMA_NUM_DESC-1:0]  csr_desc_enable,
+        """
+        lines = content.split('\n')
+        normalized_lines = []
+        
+        for line in lines:
+            # 处理无位宽的二维数组端口声明
+            # 模式: input/output/inout + 空格 + 信号名 + 空格(可多个) + [数组维度]
+            pattern = r'^(\s*)(input|output|inout)(\s+)(\w+)(\s*)(\[[^\]]+\])(\s*[,;]?\s*)(.*?)$'
+            match = re.match(pattern, line)
+            
+            if match:
+                # 检查是否已经有位宽信息（即是否为 port_type [width] signal_name 格式）
+                pre_check_pattern = r'^(\s*)(input|output|inout)(\s+)(\[[^\]]+\])(\s+)(\w+)'
+                if not re.match(pre_check_pattern, line):
+                    # 这是无位宽的端口声明，需要标准化
+                    indent = match.group(1)
+                    port_type = match.group(2)
+                    signal_name = match.group(4)
+                    array_part = match.group(6)  # [DMA_NUM_DESC-1:0] 或 [0:1] 等数组维度
+                    comma_semicolon = match.group(7).rstrip()
+                    comment = match.group(8)
+                    
+                    # 标准化格式: port_type [array_part] signal_name
+                    normalized_line = f"{indent}{port_type:<8} {array_part:<20} {signal_name}"
+                    if comma_semicolon:
+                        normalized_line += comma_semicolon
+                    if comment:
+                        normalized_line += comment
+                    
+                    normalized_lines.append(normalized_line)
+                    continue
+            
+            # 其他情况保持原样
+            normalized_lines.append(line)
+        
+        result = '\n'.join(normalized_lines)
+        
+        # 统计处理的端口数量
+        processed_ports = 0
+        for line in lines:
+            pattern = r'^(\s*)(input|output|inout)(\s+)(\w+)(\s*)(\[[^\]]+\])(\s*[,;]?\s*)'
+            pre_check_pattern = r'^(\s*)(input|output|inout)(\s+)(\[[^\]]+\])(\s+)(\w+)'
+            if re.match(pattern, line) and not re.match(pre_check_pattern, line):
+                processed_ports += 1
+        
+        if processed_ports > 0:
+            logger.debug(f"Port normalization completed for {processed_ports} array port declarations")
+        
+        return result
     
     def _parse_combined_content(self, combined_content: str, module_name: str, 
                               file_path: str, instance_params: Optional[Dict[str, str]]) -> Optional[ModuleInfo]:
@@ -228,12 +286,21 @@ class PyVerilogParser:
         if not param_list:
             return parameters
             
-        for param in param_list.children():
-            if isinstance(param, Parameter):
-                param_value = self._ast_to_string(param.value) if param.value else ""
-                parameters[param.name] = ParamInfo(
-                    name=param.name, value=param_value, default_value=param_value
+        for param_item in param_list.children():
+            if isinstance(param_item, Parameter):
+                # 直接的Parameter节点
+                param_value = self._ast_to_string(param_item.value) if param_item.value else ""
+                parameters[param_item.name] = ParamInfo(
+                    name=param_item.name, value=param_value, default_value=param_value
                 )
+            elif isinstance(param_item, Decl):
+                # Parameter包装在Decl中（这是更常见的情况）
+                for child in param_item.children():
+                    if isinstance(child, Parameter):
+                        param_value = self._ast_to_string(child.value) if child.value else ""
+                        parameters[child.name] = ParamInfo(
+                            name=child.name, value=param_value, default_value=param_value
+                        )
         return parameters
     
     def _parse_internal_parameters(self, module_ast: ModuleDef) -> Dict[str, ParamInfo]:
@@ -301,11 +368,20 @@ class PyVerilogParser:
                             port_decl.width, module_params, instance_params
                         )
                     
+                    # 检查是否为数组端口
+                    is_array = False
+                    array_size = ""
+                    if hasattr(port_decl, 'dimensions') and port_decl.dimensions:
+                        is_array = True
+                        array_size = self._parse_array_dimensions(port_decl.dimensions, module_params, instance_params)
+                    
                     port = Port(
                         name=port_decl.name,
                         direction=port_decl.__class__.__name__.lower(),
                         width=width_expr,
-                        width_value=self._calculate_width_value(width_expr)
+                        width_value=self._calculate_width_value(width_expr),
+                        is_array=is_array,
+                        array_size=array_size
                     )
                     ansi_style_ports.append(port)
             else:
@@ -334,11 +410,20 @@ class PyVerilogParser:
                                     decl_item.width, module_params, instance_params
                                 )
                             
+                            # 检查是否为数组端口
+                            is_array = False
+                            array_size = ""
+                            if hasattr(decl_item, 'dimensions') and decl_item.dimensions:
+                                is_array = True
+                                array_size = self._parse_array_dimensions(decl_item.dimensions, module_params, instance_params)
+                            
                             port = Port(
                                 name=decl_item.name,
                                 direction=decl_item.__class__.__name__.lower(),
                                 width=width_expr,
-                                width_value=self._calculate_width_value(width_expr)
+                                width_value=self._calculate_width_value(width_expr),
+                                is_array=is_array,
+                                array_size=array_size
                             )
                             ports.append(port)
         
@@ -352,13 +437,13 @@ class PyVerilogParser:
             
         width_str = self._ast_to_string(width_ast)
         
-        # 参数替换 - 使用递归解析处理参数依赖
+        # 参数替换 - 使用递归解析处理参数依赖，同时考虑实例参数覆盖
         if module_params:
-            # 使用递归解析处理参数依赖关系
-            width_str = self._resolve_parameter_dependencies(width_str, module_params)
+            # 使用递归解析处理参数依赖关系，同时传递实例参数
+            width_str = self._resolve_parameter_dependencies(width_str, module_params, instance_params)
         
-        # 实例参数替换
-        if instance_params:
+        # 对于没有模块参数的情况，仍需要处理实例参数替换
+        elif instance_params:
             for param_name, param_value in instance_params.items():
                 pattern = rf'\b{re.escape(param_name)}\b'
                 width_str = re.sub(pattern, str(param_value), width_str)
@@ -372,6 +457,62 @@ class PyVerilogParser:
             
         return width_str
     
+    def _parse_array_dimensions(self, dimensions_ast, module_params: Dict[str, ParamInfo],
+                               instance_params: Optional[Dict[str, str]] = None) -> str:
+        """解析数组维度表达式"""
+        if dimensions_ast is None:
+            return ""
+        
+        # 将数组维度AST转换为字符串
+        dimensions_str = self._ast_to_string(dimensions_ast)
+        
+        # 参数替换 - 使用递归解析处理参数依赖，同时考虑实例参数覆盖
+        if module_params:
+            dimensions_str = self._resolve_parameter_dependencies(dimensions_str, module_params, instance_params)
+        
+        # 对于没有模块参数的情况，仍需要处理实例参数替换
+        elif instance_params:
+            for param_name, param_value in instance_params.items():
+                dimensions_str = re.sub(r'\b' + param_name + r'\b', param_value, dimensions_str)
+        
+        # 化简数组维度表达式
+        dimensions_str = self._simplify_array_dimensions(dimensions_str)
+        
+        return dimensions_str
+       
+    def _simplify_array_dimensions(self, dimensions_expr: str) -> str:
+        """简化数组维度表达式，保持方括号格式"""
+        if not dimensions_expr:
+            return ""
+            
+        # 如果有多个维度，分别处理
+        # 这里先处理简单情况，假设只有一个维度 [msb:lsb]
+        dimensions_expr = dimensions_expr.strip()
+        
+        # 检查是否为 [expression] 格式
+        if dimensions_expr.startswith('[') and dimensions_expr.endswith(']'):
+            inner_expr = dimensions_expr[1:-1]  # 移除外层方括号
+            
+            # 处理 msb:lsb 格式
+            if ':' in inner_expr:
+                parts = inner_expr.split(':')
+                if len(parts) == 2:
+                    try:
+                        msb_val = self._eval_expression(parts[0].strip())
+                        lsb_val = self._eval_expression(parts[1].strip())
+                        return f"[{msb_val}:{lsb_val}]"
+                    except:
+                        return dimensions_expr
+            else:
+                # 单个表达式，尝试计算
+                try:
+                    result = self._eval_expression(inner_expr)
+                    return f"[{result}]"
+                except:
+                    return dimensions_expr
+        
+        return dimensions_expr
+       
     def _simplify_width_expression(self, width_expr: str) -> str:
         """简化位宽表达式，计算其中的数学运算"""
         if not width_expr or width_expr == "0":
@@ -411,6 +552,7 @@ class PyVerilogParser:
         return width_expr
     
     def _resolve_parameter_dependencies(self, expr: str, parameters: Dict[str, ParamInfo], 
+                                       instance_params: Optional[Dict[str, str]] = None,
                                        resolved_cache: Optional[Dict[str, str]] = None) -> str:
         """递归解析参数依赖关系，确保依赖参数先被计算"""
         if resolved_cache is None:
@@ -424,22 +566,30 @@ class PyVerilogParser:
         result_expr = expr
         for param_name, param_info in parameters.items():
             if param_name in result_expr:
-                # 递归解析依赖的参数
-                if param_name not in resolved_cache:
-                    # 先解析参数值本身的依赖
-                    resolved_param = self._resolve_parameter_dependencies(
-                        param_info.value, parameters, resolved_cache)
+                # 首先检查是否有实例参数覆盖
+                if instance_params and param_name in instance_params:
+                    # 使用实例参数值
+                    pattern = rf'\b{re.escape(param_name)}\b'
+                    result_expr = re.sub(pattern, instance_params[param_name], result_expr)
+                    if self.debug:
+                        logger.debug(f"Parameter override: {param_name} = {instance_params[param_name]}")
+                else:
+                    # 递归解析依赖的参数
+                    if param_name not in resolved_cache:
+                        # 先解析参数值本身的依赖
+                        resolved_param = self._resolve_parameter_dependencies(
+                            param_info.value, parameters, instance_params, resolved_cache)
+                        
+                        # 尝试简化解析后的参数值
+                        try:
+                            simplified_param = self._simplify_width_expression(resolved_param)
+                            resolved_cache[param_name] = simplified_param
+                        except:
+                            resolved_cache[param_name] = resolved_param
                     
-                    # 尝试简化解析后的参数值
-                    try:
-                        simplified_param = self._simplify_width_expression(resolved_param)
-                        resolved_cache[param_name] = simplified_param
-                    except:
-                        resolved_cache[param_name] = resolved_param
-                
-                # 替换参数引用 - 使用边界匹配避免部分替换
-                pattern = rf'\b{re.escape(param_name)}\b'
-                result_expr = re.sub(pattern, resolved_cache[param_name], result_expr)
+                    # 替换参数引用 - 使用边界匹配避免部分替换
+                    pattern = rf'\b{re.escape(param_name)}\b'
+                    result_expr = re.sub(pattern, resolved_cache[param_name], result_expr)
         
         # 缓存结果
         resolved_cache[expr] = result_expr
@@ -480,8 +630,18 @@ class PyVerilogParser:
         try:
             # 只允许安全的字符
             if all(c in '0123456789+-*/(). ' for c in expr):
-                return int(eval(expr))
-            return int(expr)
+                # 修复：替换前导零避免八进制解析
+                # 将类似 "07" -> "7", "01" -> "1" 的模式替换
+                expr_fixed = re.sub(r'\b0+(\d+)', r'\1', expr)
+                # 特殊处理单独的 "0" 不被替换掉
+                if expr_fixed == '':
+                    expr_fixed = '0'
+                return int(eval(expr_fixed))
+            # 直接转换整数，同样处理前导零
+            expr_fixed = re.sub(r'^0+(\d+)$', r'\1', expr)
+            if expr_fixed == '':
+                expr_fixed = '0'
+            return int(expr_fixed)
         except:
             return 0
     

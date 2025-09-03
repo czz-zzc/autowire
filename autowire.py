@@ -46,10 +46,36 @@ Examples:
     if not os.path.exists(args.input):
         logger.error(f"Input configuration file not found: {args.input}")
         return False
+    
+    # 如果是debug模式，设置日志文件路径
+    log_file = None
+    if args.debug:
+        # 确定输出目录
+        output_dir = args.output
+        if args.output.endswith('.v') or args.output.endswith('.sv'):
+            output_dir = os.path.dirname(args.output)
+        if not output_dir:
+            output_dir = '.'
+            
+        # 确保输出目录存在
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # 生成日志文件名（带时间戳）
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_file = os.path.join(output_dir, f"autowire_debug_{timestamp}.log")
+        
+        # 配置文件日志
+        from src.logger import configure_file_logging
+        configure_file_logging(log_file)
+        
+        print(f"Debug mode: Saving detailed logs to {log_file}")
         
     # 创建生成器并运行
     try:
         generator = AutoWireGenerator(args.input, args.bounding, args.debug)
+        if args.debug:
+            logger.debug(f"Debug mode activated! Log file: {log_file}")
         success = generator.generate(args.output)
         
         if success:

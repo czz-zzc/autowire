@@ -111,6 +111,13 @@ class ConnectionManager:
                         wire_info.has_input = True
                         wire_info.input_width = port.width
                         wire_info.input_width_value = port.width_value
+                        
+                        # 设置数组信息（如果是数组端口）
+                        if hasattr(port, 'is_array') and port.is_array:
+                            wire_info.is_array = True
+                            wire_info.array_size = getattr(port, 'array_size', "")
+                            wire_info.source_instance = instance.instance_name
+                        
                         port.connect_wire = wire_name
                         port.is_connected = True
                         connected_count += 1
@@ -128,6 +135,12 @@ class ConnectionManager:
                         wire_info.has_output = True
                         wire_info.output_width = port.width
                         wire_info.output_width_value = port.width_value
+                        
+                        # 设置数组信息（如果是数组端口）
+                        if hasattr(port, 'is_array') and port.is_array:
+                            wire_info.is_array = True
+                            wire_info.array_size = getattr(port, 'array_size', "")
+                            wire_info.source_instance = instance.instance_name
                         port.connect_wire = wire_name
                         port.is_connected = True
                         connected_count += 1

@@ -26,6 +26,7 @@ protocol_signals:
     - awready
     - awid
     - awuser
+    - awqos
     # W channel  
     - wdata
     - wstrb
@@ -52,6 +53,7 @@ protocol_signals:
     - arready
     - arid
     - aruser
+    - arqos
     # R channel
     - rdata
     - rresp

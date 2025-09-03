@@ -1,0 +1,58 @@
+connections:
+  u_dma_core.axim_araddr: dma_axi4m_araddr
+  u_dma_core.axim_arburst: dma_axi4m_arburst
+  u_dma_core.axim_arcache: dma_axi4m_arcache
+  u_dma_core.axim_arid: dma_axi4m_arid
+  u_dma_core.axim_arlen: dma_axi4m_arlen
+  u_dma_core.axim_arlock: dma_axi4m_arlock
+  u_dma_core.axim_arprot: dma_axi4m_arprot
+  u_dma_core.axim_arqos: dma_axi4m_arqos
+  u_dma_core.axim_arready: dma_axi4m_arready
+  u_dma_core.axim_arsize: dma_axi4m_arsize
+  u_dma_core.axim_arvalid: dma_axi4m_arvalid
+  u_dma_core.axim_awaddr: dma_axi4m_awaddr
+  u_dma_core.axim_awburst: dma_axi4m_awburst
+  u_dma_core.axim_awcache: dma_axi4m_awcache
+  u_dma_core.axim_awid: dma_axi4m_awid
+  u_dma_core.axim_awlen: dma_axi4m_awlen
+  u_dma_core.axim_awlock: dma_axi4m_awlock
+  u_dma_core.axim_awprot: dma_axi4m_awprot
+  u_dma_core.axim_awqos: dma_axi4m_awqos
+  u_dma_core.axim_awready: dma_axi4m_awready
+  u_dma_core.axim_awsize: dma_axi4m_awsize
+  u_dma_core.axim_awvalid: dma_axi4m_awvalid
+  u_dma_core.axim_bid: dma_axi4m_bid
+  u_dma_core.axim_bready: dma_axi4m_bready
+  u_dma_core.axim_bresp: dma_axi4m_bresp
+  u_dma_core.axim_bvalid: dma_axi4m_bvalid
+  u_dma_core.axim_rdata: dma_axi4m_rdata
+  u_dma_core.axim_rid: dma_axi4m_rid
+  u_dma_core.axim_rlast: dma_axi4m_rlast
+  u_dma_core.axim_rready: dma_axi4m_rready
+  u_dma_core.axim_rresp: dma_axi4m_rresp
+  u_dma_core.axim_rvalid: dma_axi4m_rvalid
+  u_dma_core.axim_wdata: dma_axi4m_wdata
+  u_dma_core.axim_wlast: dma_axi4m_wlast
+  u_dma_core.axim_wready: dma_axi4m_wready
+  u_dma_core.axim_wstrb: dma_axi4m_wstrb
+  u_dma_core.axim_wvalid: dma_axi4m_wvalid
+  u_dma_csr.csr_dma_version: 16'habcd
+  u_dma_csr.paddr: dma_apbs_paddr
+  u_dma_csr.penable: dma_apbs_penable
+  u_dma_csr.prdata: dma_apbs_prdata
+  u_dma_csr.pready: dma_apbs_pready
+  u_dma_csr.psel: dma_apbs_psel
+  u_dma_csr.pwdata: dma_apbs_pwdata
+  u_dma_csr.pwrite: dma_apbs_pwrite
+define_files: null
+instances:
+- module: dma_csr
+  name: u_dma_csr
+- module: dma_core
+  name: u_dma_core
+  parameters:
+    DMA_NUM_DESC: 2
+rtl_path:
+- ./dma_rtl/dma_csr.v
+- ./dma_rtl/dma_core.v
+top_module: dma_top

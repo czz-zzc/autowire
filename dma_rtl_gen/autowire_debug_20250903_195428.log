@@ -1,0 +1,193 @@
+2025-09-03 19:54:28 - DEBUG   - src.config_manager     - Resolved bounding file: D:\workfile\github\autowire\autowire-master\bounding.yaml
+2025-09-03 19:54:28 - DEBUG   - __main__               - Debug mode activated! Log file: ./dma_rtl_gen\autowire_debug_20250903_195428.log
+2025-09-03 19:54:28 - INFO    - src.generator          - Starting SOC generation with new architecture...
+2025-09-03 19:54:28 - INFO    - src.generator          - Loading configurations...
+2025-09-03 19:54:28 - INFO    - src.config_manager     - Loaded configuration from vcn_dma.yaml
+2025-09-03 19:54:28 - INFO    - src.config_manager     - Loaded protocol signals from D:\workfile\github\autowire\autowire-master\bounding.yaml
+2025-09-03 19:54:28 - DEBUG   - src.config_manager     -   AHB: 11 signals
+2025-09-03 19:54:28 - DEBUG   - src.config_manager     -   AXI: 43 signals
+2025-09-03 19:54:28 - DEBUG   - src.config_manager     -   APB: 10 signals
+2025-09-03 19:54:28 - INFO    - src.generator          - Parsing phase...
+2025-09-03 19:54:28 - INFO    - src.generator          - No define files specified
+2025-09-03 19:54:28 - INFO    - src.generator          - Found 2 modules in RTL files
+2025-09-03 19:54:28 - DEBUG   - src.generator          - Created instance: u_dma_csr (dma_csr)
+2025-09-03 19:54:28 - DEBUG   - src.generator          - Created instance: u_dma_core (dma_core)
+2025-09-03 19:54:28 - DEBUG   - src.generator          -   Parameters: {'DMA_NUM_DESC': '2'}
+2025-09-03 19:54:28 - DEBUG   - src.parser             - Port normalization completed for 3 array port declarations
+2025-09-03 19:54:30 - DEBUG   - src.parser             - Debug mode: temporary file preserved at ./dma_rtl_gen\temp_dma_csr_20564.v
+2025-09-03 19:54:30 - INFO    - src.parser             - Successfully parsed module dma_csr with 26 ports
+2025-09-03 19:54:30 - DEBUG   - src.generator          - Parsed 26 ports for u_dma_csr
+2025-09-03 19:54:30 - DEBUG   - src.parser             - Port normalization completed for 3 array port declarations
+2025-09-03 19:54:31 - DEBUG   - src.parser             - Parameter override: DMA_NUM_DESC = 2
+2025-09-03 19:54:31 - DEBUG   - src.parser             - Parameter override: DMA_NUM_DESC = 2
+2025-09-03 19:54:31 - DEBUG   - src.parser             - Parameter override: DMA_NUM_DESC = 2
+2025-09-03 19:54:31 - DEBUG   - src.parser             - Parameter override: DMA_NUM_DESC = 2
+2025-09-03 19:54:31 - DEBUG   - src.parser             - Parameter override: DMA_NUM_DESC = 2
+2025-09-03 19:54:31 - DEBUG   - src.parser             - Parameter override: DMA_NUM_DESC = 2
+2025-09-03 19:54:31 - DEBUG   - src.parser             - Parameter override: DMA_NUM_DESC = 2
+2025-09-03 19:54:31 - DEBUG   - src.parser             - Parameter override: DMA_NUM_DESC = 2
+2025-09-03 19:54:31 - DEBUG   - src.parser             - Debug mode: temporary file preserved at ./dma_rtl_gen\temp_dma_core_20564.v
+2025-09-03 19:54:31 - INFO    - src.parser             - Successfully parsed module dma_core with 55 ports
+2025-09-03 19:54:31 - DEBUG   - src.generator          - Parsed 55 ports for u_dma_core
+2025-09-03 19:54:31 - INFO    - src.generator          - Connection phase...
+2025-09-03 19:54:31 - INFO    - src.connection_manager - Processing protocol connections...
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Using AXI protocol signals (43 signals)
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Processing mapping: u_dma_core.axim_* -> dma_axi4m_*
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_awlock -> dma_axi4m_awlock
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_awcache -> dma_axi4m_awcache
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_awprot -> dma_axi4m_awprot
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_awqos -> dma_axi4m_awqos
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_awaddr -> dma_axi4m_awaddr
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_awlen -> dma_axi4m_awlen
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_awsize -> dma_axi4m_awsize
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_awburst -> dma_axi4m_awburst
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_awvalid -> dma_axi4m_awvalid
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_awready -> dma_axi4m_awready
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_wdata -> dma_axi4m_wdata
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_wstrb -> dma_axi4m_wstrb
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_wlast -> dma_axi4m_wlast
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_wvalid -> dma_axi4m_wvalid
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_wready -> dma_axi4m_wready
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_bresp -> dma_axi4m_bresp
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_bvalid -> dma_axi4m_bvalid
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_bready -> dma_axi4m_bready
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_arlock -> dma_axi4m_arlock
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_arcache -> dma_axi4m_arcache
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_arprot -> dma_axi4m_arprot
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_arqos -> dma_axi4m_arqos
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_araddr -> dma_axi4m_araddr
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_arlen -> dma_axi4m_arlen
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_arsize -> dma_axi4m_arsize
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_arburst -> dma_axi4m_arburst
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_arvalid -> dma_axi4m_arvalid
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_arready -> dma_axi4m_arready
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_rdata -> dma_axi4m_rdata
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_rresp -> dma_axi4m_rresp
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_rlast -> dma_axi4m_rlast
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_rvalid -> dma_axi4m_rvalid
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_rready -> dma_axi4m_rready
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_awid -> dma_axi4m_awid
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_bid -> dma_axi4m_bid
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_arid -> dma_axi4m_arid
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_core.axim_rid -> dma_axi4m_rid
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Using APB protocol signals (10 signals)
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Processing mapping: u_dma_csr.* -> dma_apbs_*
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_csr.psel -> dma_apbs_psel
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_csr.penable -> dma_apbs_penable
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_csr.pwrite -> dma_apbs_pwrite
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_csr.paddr -> dma_apbs_paddr
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_csr.pwdata -> dma_apbs_pwdata
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_csr.prdata -> dma_apbs_prdata
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Generated: u_dma_csr.pready -> dma_apbs_pready
+2025-09-03 19:54:31 - INFO    - src.connection_manager - Generated 44 protocol connections
+2025-09-03 19:54:31 - INFO    - src.config_manager     - Created intermediate YAML file: D:\workfile\github\autowire\autowire-master\dma_rtl_gen\vcn_dma_intermediate.yaml
+2025-09-03 19:54:31 - INFO    - src.config_manager     - Loaded configuration from D:\workfile\github\autowire\autowire-master\dma_rtl_gen\vcn_dma_intermediate.yaml
+2025-09-03 19:54:31 - INFO    - src.connection_manager - Processing 45 manual connections
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_araddr -> dma_axi4m_araddr
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_arburst -> dma_axi4m_arburst
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_arcache -> dma_axi4m_arcache
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_arid -> dma_axi4m_arid
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_arlen -> dma_axi4m_arlen
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_arlock -> dma_axi4m_arlock
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_arprot -> dma_axi4m_arprot
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_arqos -> dma_axi4m_arqos
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_arready -> dma_axi4m_arready
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_arsize -> dma_axi4m_arsize
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_arvalid -> dma_axi4m_arvalid
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_awaddr -> dma_axi4m_awaddr
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_awburst -> dma_axi4m_awburst
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_awcache -> dma_axi4m_awcache
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_awid -> dma_axi4m_awid
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_awlen -> dma_axi4m_awlen
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_awlock -> dma_axi4m_awlock
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_awprot -> dma_axi4m_awprot
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_awqos -> dma_axi4m_awqos
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_awready -> dma_axi4m_awready
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_awsize -> dma_axi4m_awsize
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_awvalid -> dma_axi4m_awvalid
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_bid -> dma_axi4m_bid
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_bready -> dma_axi4m_bready
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_bresp -> dma_axi4m_bresp
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_bvalid -> dma_axi4m_bvalid
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_rdata -> dma_axi4m_rdata
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_rid -> dma_axi4m_rid
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_rlast -> dma_axi4m_rlast
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_rready -> dma_axi4m_rready
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_rresp -> dma_axi4m_rresp
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_rvalid -> dma_axi4m_rvalid
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_wdata -> dma_axi4m_wdata
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_wlast -> dma_axi4m_wlast
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_wready -> dma_axi4m_wready
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_wstrb -> dma_axi4m_wstrb
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_core.axim_wvalid -> dma_axi4m_wvalid
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set constant connection: u_dma_csr.csr_dma_version -> '16'habcd'
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_csr.paddr -> dma_apbs_paddr
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_csr.penable -> dma_apbs_penable
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_csr.prdata -> dma_apbs_prdata
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_csr.pready -> dma_apbs_pready
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_csr.psel -> dma_apbs_psel
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_csr.pwdata -> dma_apbs_pwdata
+2025-09-03 19:54:31 - DEBUG   - src.connection_manager - Set wire connection: u_dma_csr.pwrite -> dma_apbs_pwrite
+2025-09-03 19:54:31 - INFO    - src.connection_manager - Starting auto-connection of unconnected ports
+2025-09-03 19:54:31 - INFO    - src.connection_manager - Auto-connection completed: 81/81 ports connected
+2025-09-03 19:54:31 - INFO    - src.connection_manager - Total wires in wire_set: 64
+2025-09-03 19:54:31 - INFO    - src.generator          - Code generation phase...
+2025-09-03 19:54:31 - INFO    - src.code_generator     - Generating top-level ports in instance and port definition order
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Processing instance u_dma_csr for top ports...
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top input port: pclk from u_dma_csr, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top input port: presetn from u_dma_csr, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top input port: dma_apbs_psel from u_dma_csr, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top input port: dma_apbs_penable from u_dma_csr, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top input port: dma_apbs_pwrite from u_dma_csr, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top input port: dma_apbs_paddr from u_dma_csr, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top input port: dma_apbs_pwdata from u_dma_csr, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_apbs_prdata from u_dma_csr, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_apbs_pready from u_dma_csr, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Processing instance u_dma_core for top ports...
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top input port: clk from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top input port: rst_n from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_awlock from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_awcache from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_awprot from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_awqos from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_awaddr from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_awlen from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_awsize from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_awburst from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_awvalid from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top input port: dma_axi4m_awready from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_wdata from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_wstrb from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_wlast from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_wvalid from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top input port: dma_axi4m_wready from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top input port: dma_axi4m_bresp from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top input port: dma_axi4m_bvalid from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_bready from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_arlock from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_arcache from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_arprot from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_arqos from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_araddr from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_arlen from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_arsize from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_arburst from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_arvalid from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top input port: dma_axi4m_arready from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top input port: dma_axi4m_rdata from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top input port: dma_axi4m_rresp from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top input port: dma_axi4m_rlast from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top input port: dma_axi4m_rvalid from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_rready from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_awid from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top input port: dma_axi4m_bid from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top output port: dma_axi4m_arid from u_dma_core, array: False
+2025-09-03 19:54:31 - DEBUG   - src.code_generator     - Added top input port: dma_axi4m_rid from u_dma_core, array: False
+2025-09-03 19:54:31 - INFO    - src.code_generator     - Generated 48 top-level ports
+2025-09-03 19:54:31 - INFO    - src.code_generator     - Generating top module to ./dma_rtl_gen\dma_top.v
+2025-09-03 19:54:31 - INFO    - src.code_generator     - Successfully generated ./dma_rtl_gen\dma_top.v
+2025-09-03 19:54:31 - INFO    - src.generator          - Debug mode: keeping intermediate file D:\workfile\github\autowire\autowire-master\dma_rtl_gen\vcn_dma_intermediate.yaml
+2025-09-03 19:54:31 - DEBUG   - src.parser             - Removed PLY file: parser.out
+2025-09-03 19:54:31 - DEBUG   - src.parser             - Removed PLY file: parsetab.py
+2025-09-03 19:54:31 - INFO    - src.generator          - Generation completed successfully!
+2025-09-03 19:54:31 - INFO    - __main__               - AutoWire v2.0 completed successfully!

@@ -1,0 +1,27 @@
+top_module: dma_top
+
+# Global Define files (optional)  
+define_files: 
+#  - ./rtl/global_define.vh
+
+# Module definitions
+rtl_path:
+  - ./dma_rtl/dma_csr.v
+  - ./dma_rtl/dma_core.v
+
+instances:
+  - module: dma_csr
+    name: u_dma_csr
+  - module: dma_core
+    name: u_dma_core
+    parameters:
+      DMA_NUM_DESC: 2
+
+connections:
+  u_dma_csr.csr_dma_version: 16'habcd
+
+bounding_con:
+  - axi:
+      u_dma_core.axim_*    : dma_axi4m_*
+  - apb:
+      u_dma_csr.*          : dma_apbs_*
