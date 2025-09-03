@@ -190,8 +190,8 @@ AutoWire v2.0 采用模块化架构，主要包含以下组件：
 graph TD
     A[开始] --> B[解析命令行参数]
     B --> C[检查输入配置文件是否存在]
-    C --> |不存在| C1[报错退出]
-    C --> |存在| D[创建AutoWireGenerator实例]
+    C -->|不存在| C1[报错退出]
+    C -->|存在| D[创建AutoWireGenerator实例]
     
     D --> E[初始化阶段]
     E --> E1[确定输出目录]
@@ -200,41 +200,41 @@ graph TD
     
     E --> F[配置加载阶段]
     F --> F1[加载主YAML配置文件]
-    F1 --> |失败| F1_ERR[配置加载失败，退出]
-    F1 --> |成功| F2[加载协议信号定义文件 bounding.yaml]
-    F2 --> |成功| F3[获取协议信号映射表]
-    F2 --> |失败| F4[协议信号为空，继续处理]
+    F1 -->|失败| F1_ERR[配置加载失败退出]
+    F1 -->|成功| F2[加载协议信号定义文件]
+    F2 -->|成功| F3[获取协议信号映射表]
+    F2 -->|失败| F4[协议信号为空继续处理]
     
     F3 --> G[组件初始化阶段]
     F4 --> G
-    G --> G1[初始化ConnectionManager<br/>传入协议信号]
-    G --> G2[初始化CodeGenerator<br/>传入顶层模块名]
+    G --> G1[初始化ConnectionManager传入协议信号]
+    G --> G2[初始化CodeGenerator传入顶层模块名]
     
     G --> H[解析阶段]
-    H --> H1[解析宏定义文件 .vh]
+    H --> H1[解析宏定义文件vh格式]
     H1 --> H2[发现RTL文件中的模块]
     H2 --> H3[创建Instance对象列表]
     H3 --> H4{对每个Instance}
     H4 --> H5[使用PyVerilog解析模块文件]
-    H5 --> H6[提取端口信息 ports、parameters]
+    H5 --> H6[提取端口信息ports和parameters]
     H6 --> H7[更新Instance的ports属性]
     H7 --> H4
-    H4 --> |所有完成| I[连线阶段]
+    H4 -->|所有完成| I[连线阶段]
     
     I --> I1[设置instances到ConnectionManager]
-    I1 --> I2[处理协议连线 bounding_con]
-    I2 --> I3{是否有协议连线?}
-    I3 --> |有| I4[通配符匹配协议信号<br/>生成连线映射]
-    I4 --> I5[创建中间配置文件<br/>xxx_intermediate.yaml]
-    I5 --> I6[重新加载配置<br/>包含生成的连线]
-    I3 --> |无| I7[处理手动连线 connections]
+    I1 --> I2[处理协议连线bounding_con]
+    I2 --> I3{是否有协议连线}
+    I3 -->|有| I4[通配符匹配协议信号生成连线映射]
+    I4 --> I5[创建中间配置文件intermediate.yaml]
+    I5 --> I6[重新加载配置包含生成的连线]
+    I3 -->|无| I7[处理手动连线connections]
     I6 --> I7
     
     I7 --> I8[分类连接类型]
-    I8 --> I8A[常量连接<br/>如：1'b1, 8'h00]
-    I8 --> I8B[悬空连接<br/>空字符串]
-    I8 --> I8C[拼接连接<br/>如：{sig1,sig2}]
-    I8 --> I8D[位选择连接<br/>如：sig[7:0]]
+    I8 --> I8A[常量连接如1b1和8h00]
+    I8 --> I8B[悬空连接空字符串]
+    I8 --> I8C[拼接连接如sig1sig2]
+    I8 --> I8D[位选择连接如sig70]
     I8 --> I8E[普通信号连接]
     
     I8A --> I9[更新WireInfo信息]
@@ -246,36 +246,36 @@ graph TD
     I9 --> I10[自动连线阶段]
     I10 --> I11{遍历所有未连接端口}
     I11 --> I12[同名信号匹配]
-    I12 --> I13[检查端口方向<br/>input/output]
+    I12 --> I13[检查端口方向input和output]
     I13 --> I14[检查信号位宽一致性]
     I14 --> I15[创建或更新WireInfo]
     I15 --> I11
-    I11 --> |全部完成| J[代码生成阶段]
+    I11 -->|全部完成| J[代码生成阶段]
     
     J --> J1[设置instances到CodeGenerator]
     J1 --> J2[设置wire_set到CodeGenerator]
     J2 --> J3[生成顶层模块端口]
     J3 --> J3A[遍历所有实例端口]
-    J3A --> J3B{端口是否连接到顶层?}
-    J3B --> |是| J3C[添加到顶层端口列表]
-    J3B --> |否| J3A
+    J3A --> J3B{端口是否连接到顶层}
+    J3B -->|是| J3C[添加到顶层端口列表]
+    J3B -->|否| J3A
     J3C --> J3A
-    J3A --> |完成| J4[解析输出路径]
+    J3A -->|完成| J4[解析输出路径]
     
     J4 --> J5[生成Verilog代码]
-    J5 --> J5A[生成文件头注释<br/>包含时间戳和版本信息]
+    J5 --> J5A[生成文件头注释包含时间戳和版本信息]
     J5A --> J5B[生成模块声明和端口列表]
     J5B --> J5C[生成内部信号wire声明]
     J5C --> J5D[生成所有子模块实例化]
-    J5D --> J5E[处理参数化实例<br/>#(.PARAM(value))]
-    J5E --> J5F[生成端口连接<br/>(.port(signal))]
+    J5D --> J5E[处理参数化实例PARAM value设置]
+    J5E --> J5F[生成端口连接port signal映射]
     J5F --> J5G[生成endmodule]
     
     J5G --> K[清理阶段]
     K --> K1[清理PyVerilog生成的PLY文件]
-    K1 --> K2{调试模式?}
-    K2 --> |是| K3[保留中间配置文件]
-    K2 --> |否| K4[删除中间配置文件]
+    K1 --> K2{调试模式}
+    K2 -->|是| K3[保留中间配置文件]
+    K2 -->|否| K4[删除中间配置文件]
     
     K3 --> L[完成]
     K4 --> L
