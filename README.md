@@ -248,7 +248,7 @@ flowchart TD
     G1D --> G2[手动连线处理<br/>connections配置]
     G2 --> G2A{连线类型判断}
     G2A -->|常量| G2A1[处理常量连接<br/>16'habcd, 1'b1]
-    G2A -->|位选择| G2A2[处理位选择<br/>signal[7:0]]
+    G2A -->|位选择| G2A2[处理位选择<br/>signal数组]
     G2A -->|拼接| G2A3[处理信号拼接<br/>{sig1, sig2, 4'b0}]
     G2A -->|悬空| G2A4[处理悬空端口<br/>留空不连接]
     G2A1 --> G2B[更新WireInfo映射]
