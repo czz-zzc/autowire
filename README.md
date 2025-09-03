@@ -281,7 +281,7 @@ flowchart TD
     
     H3C --> H4[写入Verilog文件<br/>完整模块代码]
     H4 --> H4A[添加文件头注释<br/>时间戳和版本信息]
-    H4A --> H4B[生成模块声明<br/>module top_name(ports)]
+    H4A --> H4B[生成模块声明<br/>module top_name]
     H4B --> H4C[输出内部信号声明]
     H4C --> H4D[输出所有实例化代码]
     H4D --> H4E[添加endmodule]
@@ -706,3 +706,4 @@ autowire-master/
 - 📧 **技术支持**: 查看调试日志或联系维护者
 
 **AutoWire v2.0** - 让Verilog模块集成更简单、更智能！
+
