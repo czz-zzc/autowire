@@ -4,6 +4,57 @@
 
 AutoWire v2.0 是一个基于 [PyVerilog](https://github.com/PyHDI/Pyverilog) 的 Verilog SOC 自动连线工具。它能够自动解析 Verilog 模块，根据配置文件进行协议信号批量匹配和端口连线，最终生成顶层集成模块。
 
+# 架构图
+
+```mermaid
+graph TB
+    subgraph "命令行入口"
+        A[autowire.py<br/>参数解析和主流程控制]
+    end
+    
+    subgraph "核心控制层"
+        B[Generator<br/>主控制器<br/>协调各模块工作流程]
+    end
+    
+    subgraph "配置管理层"  
+        C[ConfigManager<br/>配置文件加载管理]
+        D[bounding.yaml<br/>协议信号定义]
+        E[项目配置.yaml<br/>实例和连线配置]
+    end
+    
+    subgraph "解析处理层"
+        F[PyVerilogParser<br/>RTL语法解析]
+        G[RTL源文件<br/>Verilog模块]
+    end
+    
+    subgraph "连线管理层"
+        H[ConnectionManager<br/>协议连线+手动连线+自动连线]
+    end
+    
+    subgraph "代码生成层"
+        I[CodeGenerator<br/>顶层模块生成器]
+        J[输出文件<br/>集成的顶层模块]
+    end
+    
+    A --> B
+    B --> C
+    B --> F  
+    B --> H
+    B --> I
+    
+    C --> D
+    C --> E
+    F --> G
+    I --> J
+    
+    style A fill:#e3f2fd
+    style B fill:#fff3e0
+    style C fill:#f3e5f5
+    style F fill:#e8f5e8
+    style H fill:#fce4ec
+    style I fill:#e0f2f1
+```
+
 ## 核心特性
 
 - 🔧 **智能连线**: 协议信号自动识别（AXI、APB、AHB等）+ 同名信号匹配
@@ -158,58 +209,6 @@ endmodule
 
 ## 系统架构
 
-AutoWire v2.0 采用模块化架构设计，主要包含以下核心组件：
-
-### 模块关系架构图
-
-```mermaid
-graph TB
-    subgraph "命令行入口"
-        A[autowire.py<br/>参数解析和主流程控制]
-    end
-    
-    subgraph "核心控制层"
-        B[Generator<br/>主控制器<br/>协调各模块工作流程]
-    end
-    
-    subgraph "配置管理层"  
-        C[ConfigManager<br/>配置文件加载管理]
-        D[bounding.yaml<br/>协议信号定义]
-        E[项目配置.yaml<br/>实例和连线配置]
-    end
-    
-    subgraph "解析处理层"
-        F[PyVerilogParser<br/>RTL语法解析]
-        G[RTL源文件<br/>Verilog模块]
-    end
-    
-    subgraph "连线管理层"
-        H[ConnectionManager<br/>协议连线+手动连线+自动连线]
-    end
-    
-    subgraph "代码生成层"
-        I[CodeGenerator<br/>顶层模块生成器]
-        J[输出文件<br/>集成的顶层模块]
-    end
-    
-    A --> B
-    B --> C
-    B --> F  
-    B --> H
-    B --> I
-    
-    C --> D
-    C --> E
-    F --> G
-    I --> J
-    
-    style A fill:#e3f2fd
-    style B fill:#fff3e0
-    style C fill:#f3e5f5
-    style F fill:#e8f5e8
-    style H fill:#fce4ec
-    style I fill:#e0f2f1
-```
 
 ### 处理流程图
 
@@ -276,8 +275,8 @@ flowchart TD
     H2A --> H2B[避免重复声明<br/>去重处理]
     
     H2B --> H3[生成实例化代码<br/>模块实例+端口连接]
-    H3 --> H3A[处理参数传递<br/>#(.PARAM(value))]
-    H3A --> H3B[生成端口连接映射<br/>.port(signal)]
+    H3 --> H3A[处理参数传递<br/>]
+    H3A --> H3B[生成端口连接映射<br/>]
     H3B --> H3C[格式化代码输出<br/>对齐和注释]
     
     H3C --> H4[写入Verilog文件<br/>完整模块代码]
