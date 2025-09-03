@@ -78,7 +78,6 @@ bounding_con:
   - ahb:
       u_cpu.a_*    : cpu_ahbm_*
       u_uart.*_ahb  :  cpu_ahbm_*
-
 ```
 
 ### 3. 输出文件
@@ -173,7 +172,6 @@ uart_controller #(
 endmodule
 ```
 
-
 ## 工作原理
 
 AutoWire v2.0 采用模块化架构，主要包含以下组件：
@@ -186,15 +184,151 @@ AutoWire v2.0 采用模块化架构，主要包含以下组件：
 4. **Connection Manager (`connection_manager.py`)**: 连线逻辑处理
 5. **Code Generator (`code_generator.py`)**: 顶层模块代码生成
 
-### 工作流程
+### 详细处理流程图
+
+```mermaid
+graph TD
+    A[开始] --> B[解析命令行参数]
+    B --> C[检查输入配置文件是否存在]
+    C --> |不存在| C1[报错退出]
+    C --> |存在| D[创建AutoWireGenerator实例]
+    
+    D --> E[初始化阶段]
+    E --> E1[确定输出目录]
+    E --> E2[初始化PyVerilogParser]
+    E --> E3[设置调试级别]
+    
+    E --> F[配置加载阶段]
+    F --> F1[加载主YAML配置文件]
+    F1 --> |失败| F1_ERR[配置加载失败，退出]
+    F1 --> |成功| F2[加载协议信号定义文件 bounding.yaml]
+    F2 --> |成功| F3[获取协议信号映射表]
+    F2 --> |失败| F4[协议信号为空，继续处理]
+    
+    F3 --> G[组件初始化阶段]
+    F4 --> G
+    G --> G1[初始化ConnectionManager<br/>传入协议信号]
+    G --> G2[初始化CodeGenerator<br/>传入顶层模块名]
+    
+    G --> H[解析阶段]
+    H --> H1[解析宏定义文件 .vh]
+    H1 --> H2[发现RTL文件中的模块]
+    H2 --> H3[创建Instance对象列表]
+    H3 --> H4{对每个Instance}
+    H4 --> H5[使用PyVerilog解析模块文件]
+    H5 --> H6[提取端口信息 ports、parameters]
+    H6 --> H7[更新Instance的ports属性]
+    H7 --> H4
+    H4 --> |所有完成| I[连线阶段]
+    
+    I --> I1[设置instances到ConnectionManager]
+    I1 --> I2[处理协议连线 bounding_con]
+    I2 --> I3{是否有协议连线?}
+    I3 --> |有| I4[通配符匹配协议信号<br/>生成连线映射]
+    I4 --> I5[创建中间配置文件<br/>xxx_intermediate.yaml]
+    I5 --> I6[重新加载配置<br/>包含生成的连线]
+    I3 --> |无| I7[处理手动连线 connections]
+    I6 --> I7
+    
+    I7 --> I8[分类连接类型]
+    I8 --> I8A[常量连接<br/>如：1'b1, 8'h00]
+    I8 --> I8B[悬空连接<br/>空字符串]
+    I8 --> I8C[拼接连接<br/>如：{sig1,sig2}]
+    I8 --> I8D[位选择连接<br/>如：sig[7:0]]
+    I8 --> I8E[普通信号连接]
+    
+    I8A --> I9[更新WireInfo信息]
+    I8B --> I9
+    I8C --> I9
+    I8D --> I9
+    I8E --> I9
+    
+    I9 --> I10[自动连线阶段]
+    I10 --> I11{遍历所有未连接端口}
+    I11 --> I12[同名信号匹配]
+    I12 --> I13[检查端口方向<br/>input/output]
+    I13 --> I14[检查信号位宽一致性]
+    I14 --> I15[创建或更新WireInfo]
+    I15 --> I11
+    I11 --> |全部完成| J[代码生成阶段]
+    
+    J --> J1[设置instances到CodeGenerator]
+    J1 --> J2[设置wire_set到CodeGenerator]
+    J2 --> J3[生成顶层模块端口]
+    J3 --> J3A[遍历所有实例端口]
+    J3A --> J3B{端口是否连接到顶层?}
+    J3B --> |是| J3C[添加到顶层端口列表]
+    J3B --> |否| J3A
+    J3C --> J3A
+    J3A --> |完成| J4[解析输出路径]
+    
+    J4 --> J5[生成Verilog代码]
+    J5 --> J5A[生成文件头注释<br/>包含时间戳和版本信息]
+    J5A --> J5B[生成模块声明和端口列表]
+    J5B --> J5C[生成内部信号wire声明]
+    J5C --> J5D[生成所有子模块实例化]
+    J5D --> J5E[处理参数化实例<br/>#(.PARAM(value))]
+    J5E --> J5F[生成端口连接<br/>(.port(signal))]
+    J5F --> J5G[生成endmodule]
+    
+    J5G --> K[清理阶段]
+    K --> K1[清理PyVerilog生成的PLY文件]
+    K1 --> K2{调试模式?}
+    K2 --> |是| K3[保留中间配置文件]
+    K2 --> |否| K4[删除中间配置文件]
+    
+    K3 --> L[完成]
+    K4 --> L
+    
+    style A fill:#e1f5fe
+    style L fill:#c8e6c9
+    style C1 fill:#ffcdd2
+    style F1_ERR fill:#ffcdd2
+    
+    classDef processClass fill:#fff3e0
+    classDef decisionClass fill:#f3e5f5
+    classDef dataClass fill:#e8f5e8
+    classDef errorClass fill:#ffcdd2
+    
+    class F,H,I,J processClass
+    class C,I3,J3B,K2 decisionClass
+    class E1,E2,F2,I5 dataClass
+    class C1,F1_ERR errorClass
+```
+
+### 核心处理逻辑详解
+
+#### 1. **协议信号匹配算法**
+- 支持通配符模式匹配（如：`u_cpu.a_*` 匹配 `a_haddr`, `a_hwrite` 等）
+- 基于协议信号列表进行精确过滤（AHB、AXI、APB等）
+- 自动生成目标信号名称（如：`a_haddr` → `cpu_ahbm_haddr`）
+
+#### 2. **连线优先级**
+1. **协议连线** (`bounding_con`) - 最高优先级，自动生成
+2. **手动连线** (`connections`) - 覆盖协议连线
+3. **自动连线** - 同名信号匹配，最低优先级
+
+#### 3. **信号类型处理**
+- **常量信号**: `1'b1`, `8'hFF` 等
+- **拼接信号**: `{signal1, signal2, 6'b0}`
+- **位选择**: `signal[7:0]`, `bus[15:8]`
+- **悬空信号**: 空连接，生成悬空端口
+
+#### 4. **错误检测机制**
+- 端口位宽不匹配检测
+- 多驱动信号检测
+- 模块文件不存在检测
+- 语法错误捕获和报告
+
+### 工作流程总结
 
 1. **配置加载**: 解析 YAML 配置文件和协议信号定义
 2. **模块解析**: 使用 PyVerilog 解析 RTL 文件，提取端口和参数信息
 3. **连线处理**: 
-   - 处理协议信号连线（基于列表匹配）
-   - 处理手动连线配置
+   - 处理协议信号连线（基于通配符匹配和信号列表过滤）
+   - 处理手动连线配置（支持复杂表达式）
    - 执行自动连线（同名信号匹配）
-4. **代码生成**: 生成顶层模块 Verilog 代码
+4. **代码生成**: 生成顶层模块 Verilog 代码，包含完整的模块实例化和信号连接
 
 ## 命令行选项
 
@@ -218,7 +352,6 @@ optional arguments:
 ## 使用示例
 
 ```bash
-
 # 指定配置文件和输出目录
 python autowire.py -i soc_config.yaml -b bounding.yaml -o build/
 
@@ -232,6 +365,116 @@ python autowire.py -i soc_config.yaml -b bounding.yaml -o build/soc_top.v
 python autowire.py -i soc_config.yaml -b bounding.yaml -o build/soc_top.v -d
 ```
 
+## 配置文件详细说明
+
+### 主配置文件结构 (YAML)
+
+```yaml
+# 基本配置
+top_module: soc_top                    # 生成的顶层模块名
+
+# 宏定义文件 (可选)
+define_files:                          # 全局宏定义文件列表
+  - ./rtl/define.vh
+  - ./rtl/global_define.vh
+
+# RTL源文件
+rtl_path:                              # RTL文件路径列表
+  - ./rtl/cpu_core.v
+  - ./rtl/uart_controller.v
+  - ./rtl/memory_controller.v
+
+# 模块实例定义
+instances:
+  - module: cpu_core                   # 模块名（必须）
+    name: u_cpu                        # 实例名（必须）
+    parameters:                        # 参数化配置（可选）
+      CACHE_SIZE: 1024
+      ADDR_WIDTH: 32
+      
+  - module: uart_controller
+    name: u_uart
+    parameters:
+      BAUD_RATE: 115200
+      DATA_BITS: 8
+
+# 手动连线配置
+connections:
+  # 格式：实例名.端口名: 连接目标
+  u_cpu.clk: clk                       # 普通信号连接
+  u_cpu.reset_n: rst_n                 # 信号重命名连接
+  u_cpu.interrupt: "{timer_irq, uart_irq, 6'b0}"  # 信号拼接
+  u_uart.enable: 1'b1                  # 常量连接
+  u_uart.test_mode: 2'b01              # 多位常量
+  u_debug.probe:                       # 悬空连接（留空）
+
+# 协议信号批量连线
+bounding_con:
+  - ahb:                               # AHB协议连线
+      u_cpu.ahb_*: cpu_ahbm_*          # 通配符匹配
+      u_memory.*_ahb: cpu_ahbm_*       # 后缀匹配
+      
+  - axi:                               # AXI协议连线  
+      u_dma.axi_*: system_axi_*
+      
+  - apb:                               # APB协议连线
+      u_timer.*_apb: apb_*
+```
+
+### 协议信号定义文件 (bounding.yaml)
+
+```yaml
+# 协议信号定义，用于通配符匹配时的信号识别
+protocol_signals:
+  ahb:                                 # AHB协议信号列表
+    - haddr                            # 只有包含这些信号名的端口
+    - hwdata                           # 才会被协议连线匹配
+    - hrdata
+    - hwrite
+    - htrans
+    - hsize
+    - hburst
+    - hready
+    - hresp
+    - hsel
+    
+  axi:                                 # AXI协议信号列表
+    - awaddr
+    - awvalid
+    - awready
+    - wdata
+    - wvalid
+    - wready
+    - bresp
+    - bvalid
+    - bready
+    # ... 更多AXI信号
+    
+  apb:                                 # APB协议信号列表
+    - paddr
+    - pwdata
+    - prdata
+    - pwrite
+    - psel
+    - penable
+    - pready
+```
+
+### 配置文件解析优先级
+
+1. **协议连线** (`bounding_con`) - 自动生成，最低优先级
+2. **手动连线** (`connections`) - 手动配置，会覆盖协议连线
+3. **自动连线** - 同名信号匹配，填补未连接端口
+
+### 连接类型支持
+
+| 连接类型 | 语法示例 | 说明 |
+|---------|---------|------|
+| 普通信号 | `signal_name` | 直接信号连接 |
+| 常量连接 | `1'b1`, `8'hFF` | 常量值连接 |
+| 信号拼接 | `{sig1, sig2, 4'b0}` | 多信号拼接 |
+| 位选择 | `bus[7:0]`, `data[15]` | 信号位选择 |
+| 悬空连接 | (留空) | 端口悬空不连接 |
 
 ## 高级功能
 
@@ -271,19 +514,153 @@ connections:
   u_module.data_out:                    # 悬空连接
 ```
 
-## 常见问题
+## 故障排除和最佳实践
 
-1. **找不到模块定义**
-   - 检查 `rtl_path` 中的文件路径是否正确
-   - 确认模块名与文件中定义的模块名一致
+### 常见问题及解决方案
 
-2. **协议信号不匹配**
-   - 检查 `bounding.yaml` 中的协议信号定义
-   - 验证端口名称是否包含协议信号名
+#### 1. **模块解析失败**
+```bash
+# 错误示例
+ERROR - Module cpu_core not found in RTL files
+```
+**解决方案：**
+- 检查 `rtl_path` 中的文件路径是否正确
+- 确认模块名与 Verilog 文件中的 `module` 声明一致
+- 使用绝对路径避免相对路径问题
+- 检查文件是否存在且可读
 
-3. **解析错误**
-   - 使用 `-d` 选项开启调试模式查看详细日志
-   - 检查 Verilog 语法是否正确
+#### 2. **协议信号不匹配**
+```bash
+# 错误示例  
+WARNING - No protocol signals matched for u_cpu.ahb_*
+```
+**解决方案：**
+- 检查端口命名是否包含协议信号名（如 `haddr`, `hwrite` 等）
+- 验证 `bounding.yaml` 中的协议信号定义
+- 使用调试模式 `-d` 查看详细匹配过程
+- 确认通配符模式正确（如 `ahb_*` vs `*_ahb`）
+
+#### 3. **位宽不匹配警告**
+```bash
+# 警告示例
+WARNING - Width mismatch for wire data_bus: input=32, output=16
+```
+**解决方案：**
+- 检查连接的两个端口位宽是否匹配
+- 使用位选择语法：`data_bus[15:0]` 连接到16位端口
+- 使用拼接语法：`{16'b0, narrow_signal}` 扩展位宽
+- 修改模块定义确保位宽一致
+
+#### 4. **多驱动信号错误**
+```bash
+# 错误示例
+ERROR - Multiple outputs driving wire clock_signal
+```
+**解决方案：**
+- 检查是否有多个输出端口连接到同一信号
+- 使用不同的信号名区分不同来源
+- 检查配置文件中是否有重复连线定义
+
+### 最佳实践建议
+
+#### 1. **文件组织**
+```
+project/
+├── config/
+│   ├── soc.yaml           # 主配置文件
+│   └── protocols.yaml     # 协议定义文件
+├── rtl/
+│   ├── cpu/               # 按功能模块分类
+│   ├── memory/
+│   └── peripherals/
+└── generated/
+    └── soc_top.v          # 生成的顶层文件
+```
+
+#### 2. **命名规范**
+```yaml
+# 推荐的端口命名规范
+instances:
+  - name: u_cpu_core       # 实例名添加 u_ 前缀
+  - name: u_ahb_decoder    # 协议相关模块包含协议名
+  - name: u_uart_0         # 多个同类模块添加序号
+```
+
+#### 3. **协议连线最佳实践**
+```yaml
+# 清晰的协议连线配置
+bounding_con:
+  - ahb:
+      # 主设备连接
+      u_cpu.ahb_*: cpu_ahb_*
+      u_dma.ahb_*: dma_ahb_*
+      
+      # 从设备连接  
+      u_memory.*_ahb: ahb_slave_*
+      u_uart.*_ahb: ahb_slave_*
+```
+
+#### 4. **调试技巧**
+```bash
+# 逐步调试流程
+python autowire.py -i config.yaml -o test/ -d > debug.log 2>&1
+
+# 检查中间文件
+ls test/*_intermediate.yaml
+
+# 验证生成的代码
+iverilog -o sim test/soc_top.v rtl/*.v
+```
+
+#### 5. **性能优化**
+- 将常用的RTL文件放在SSD上加速解析
+- 使用相对路径避免长路径名
+- 合理组织协议信号列表，常用协议放在前面
+- 对大型项目考虑分模块配置，减少单次解析文件数量
+
+#### 6. **版本控制建议**
+```gitignore
+# .gitignore 示例
+*_intermediate.yaml    # 中间配置文件
+*.pyc                  # Python缓存文件  
+parsetab.py           # PyVerilog解析缓存
+parser.out            # PLY生成文件
+generated/            # 生成的文件目录（可选）
+```
+
+#### 7. **配置文件维护**
+```yaml
+# 使用注释组织配置文件
+##############################################
+# CPU 子系统实例
+##############################################
+instances:
+  - module: cpu_core
+    name: u_cpu
+    parameters:
+      # 缓存配置
+      ICACHE_SIZE: 8192
+      DCACHE_SIZE: 8192
+      
+##############################################  
+# 手动连线 - 系统级信号
+##############################################
+connections:
+  # 时钟和复位
+  u_cpu.clk: sys_clk
+  u_cpu.rst_n: sys_rst_n
+  
+  # 中断连接
+  u_cpu.irq: "{timer_irq, uart_irq, 30'b0}"
+```
+
+### 错误恢复策略
+
+1. **备份原始配置**: 修改配置前先备份
+2. **渐进式调试**: 从简单配置开始，逐步添加复杂连线
+3. **模块化验证**: 单独验证每个子系统后再整合
+4. **日志分析**: 利用调试日志定位问题根源
+5. **版本对比**: 使用版本控制工具对比配置变更
 
 ### 调试模式
 
@@ -342,6 +719,147 @@ WARNING: 183 shift/reduce conflicts
 2025-08-25 15:38:30 - INFO    - __main__               - AutoWire v2.0 completed successfully!
 ```
 
+## 项目架构
+
+### 模块关系架构图
+
+```mermaid
+graph TB
+    subgraph "主程序入口"
+        A[autowire.py<br/>命令行处理]
+    end
+    
+    subgraph "核心处理层"
+        B[Generator<br/>主控制器]
+    end
+    
+    subgraph "配置管理层"
+        C[ConfigManager<br/>配置文件管理]
+        D[bounding.yaml<br/>协议信号定义]
+        E[config.yaml<br/>项目配置]
+    end
+    
+    subgraph "解析层"
+        F[PyVerilogParser<br/>RTL文件解析]
+        G[RTL Files<br/>Verilog源码]
+    end
+    
+    subgraph "数据结构层"
+        H[Instance<br/>模块实例]
+        I[Port<br/>端口信息]
+        J[WireInfo<br/>信号信息]
+    end
+    
+    subgraph "连线管理层"
+        K[ConnectionManager<br/>连线逻辑处理]
+    end
+    
+    subgraph "代码生成层"
+        L[CodeGenerator<br/>Verilog代码生成]
+        M[Output File<br/>生成的顶层模块]
+    end
+    
+    A --> B
+    B --> C
+    B --> F
+    B --> K
+    B --> L
+    
+    C --> D
+    C --> E
+    C --> |加载配置| B
+    
+    F --> G
+    F --> |解析生成| H
+    H --> |包含| I
+    
+    K --> |管理| J
+    K --> |处理| I
+    
+    L --> |生成| M
+    L --> |使用| H
+    L --> |使用| J
+    
+    style A fill:#e3f2fd
+    style B fill:#fff3e0
+    style C fill:#f3e5f5
+    style F fill:#e8f5e8
+    style K fill:#fce4ec
+    style L fill:#e0f2f1
+```
+
+### 数据流向图
+
+```mermaid
+flowchart LR
+    subgraph "输入数据"
+        A1[YAML配置文件]
+        A2[bounding.yaml]
+        A3[RTL源文件]
+        A4[命令行参数]
+    end
+    
+    subgraph "处理过程"
+        B1[配置解析]
+        B2[RTL解析]
+        B3[协议连线]
+        B4[手动连线]
+        B5[自动连线]
+        B6[代码生成]
+    end
+    
+    subgraph "中间数据"
+        C1[实例列表]
+        C2[端口信息]
+        C3[信号映射]
+        C4[连线关系]
+    end
+    
+    subgraph "输出结果"
+        D1[顶层Verilog文件]
+        D2[中间配置文件]
+        D3[调试日志]
+    end
+    
+    A1 --> B1
+    A2 --> B3
+    A3 --> B2
+    A4 --> B1
+    
+    B1 --> C1
+    B2 --> C2
+    B3 --> C3
+    B4 --> C4
+    B5 --> C4
+    
+    C1 --> B3
+    C1 --> B4
+    C1 --> B5
+    C2 --> B3
+    C2 --> B4
+    C2 --> B5
+    
+    C1 --> B6
+    C4 --> B6
+    
+    B6 --> D1
+    B3 --> D2
+    B1 --> D3
+    B2 --> D3
+    B3 --> D3
+    B4 --> D3
+    B5 --> D3
+    B6 --> D3
+    
+    style A1 fill:#e1f5fe
+    style A2 fill:#e1f5fe
+    style A3 fill:#e1f5fe
+    style A4 fill:#e1f5fe
+    style D1 fill:#c8e6c9
+    style D2 fill:#fff9c4
+    style D3 fill:#f3e5f5
+```
+
 ## 项目结构
 
 ```
@@ -389,12 +907,3 @@ autowire-master/
 - 支持二维数组类port自动连线
 
 **技术支持**: 如有问题请提交 GitHub Issue
-
-
-
-
-
-
-
-
-
