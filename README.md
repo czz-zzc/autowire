@@ -233,7 +233,7 @@ flowchart TD
     F1 --> F2[创建Instance对象列表<br/>基于instances配置]
     F2 --> F3{遍历每个Instance}
     F3 --> F4[使用PyVerilog解析模块<br/>提取端口和参数信息]
-    F4 --> F4A[处理数组端口<br/>如csr_desc_addr[1:0]]
+    F4 --> F4A[处理数组端口<br/>如csr_desc_addr数组]
     F4A --> F4B[应用参数化配置<br/>如DMA_NUM_DESC: 2]
     F4B --> F5[更新Instance端口列表<br/>Port对象集合]
     F5 --> F3
@@ -272,7 +272,7 @@ flowchart TD
     H1 --> H1A[按实例顺序处理端口<br/>保持生成顺序一致性]
     H1A --> H1B[区分input/output方向<br/>确定端口声明]
     H1B --> H2[生成内部信号声明<br/>wire语句自动生成]
-    H2 --> H2A[处理数组信号声明<br/>wire [31:0] addr[1:0]]
+    H2 --> H2A[处理数组信号声明<br/>wire数组格式]
     H2A --> H2B[避免重复声明<br/>去重处理]
     
     H2B --> H3[生成实例化代码<br/>模块实例+端口连接]
