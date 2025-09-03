@@ -215,112 +215,282 @@ graph TB
 
 ```mermaid
 flowchart TD
-    A[开始] --> B[解析命令行参数]
-    B --> C[检查输入文件]
-    C --> D[初始化AutoWireGenerator]
+    A[开始] --> B[解析命令行参数<br/>-i config.yaml -o output -d]
+    B --> C{检查输入文件存在?}
+    C -->|否| C1[❌ 报错退出<br/>文件不存在]
+    C -->|是| D[初始化AutoWireGenerator<br/>设置调试模式]
     
-    D --> E[配置加载阶段]
-    E --> E1[加载主YAML配置]
-    E1 --> E2[加载协议信号定义bounding.yaml]
-    E2 --> E3[初始化各组件]
+    D --> E[📂 配置加载阶段]
+    E --> E1[加载主YAML配置<br/>解析instances/connections]
+    E1 --> E2{协议定义文件存在?}
+    E2 -->|是| E2A[加载bounding.yaml<br/>解析AXI/APB/AHB信号]
+    E2 -->|否| E2B[跳过协议定义<br/>仅使用手动连线]
+    E2A --> E3[初始化各组件<br/>ConnectionManager/CodeGenerator]
+    E2B --> E3
     
-    E3 --> F[解析阶段]
-    F --> F1[解析RTL文件发现模块]
-    F1 --> F2[使用PyVerilog提取端口信息]
-    F2 --> F3[处理参数化实例]
-    F3 --> F4[创建Instance对象列表]
+    E3 --> F[🔍 RTL解析阶段]
+    F --> F1[扫描rtl_path<br/>发现Verilog模块文件]
+    F1 --> F2[创建Instance对象列表<br/>基于instances配置]
+    F2 --> F3{遍历每个Instance}
+    F3 --> F4[使用PyVerilog解析模块<br/>提取端口和参数信息]
+    F4 --> F4A[处理数组端口<br/>如csr_desc_addr[1:0]]
+    F4A --> F4B[应用参数化配置<br/>如DMA_NUM_DESC: 2]
+    F4B --> F5[更新Instance端口列表<br/>Port对象集合]
+    F5 --> F3
+    F3 -->|全部完成| G[🔗 连线处理阶段]
     
-    F4 --> G[连线阶段]
-    G --> G1[协议连线处理bounding_con]
-    G1 --> G1A[通配符匹配axim_* → dma_axi4m_*]
-    G1A --> G1B[生成中间配置文件]
-    G1B --> G2[手动连线处理connections]
-    G2 --> G2A[常量连接16'habcd]
-    G2A --> G2B[信号连接和位选择]
-    G2B --> G3[自动连线阶段]
-    G3 --> G3A[同名信号匹配]
-    G3A --> G3B[位宽检查]
+    G --> G1[协议连线处理<br/>bounding_con规则]
+    G1 --> G1A[通配符匹配展开<br/>axim_* → 匹配所有axim_开头端口]
+    G1A --> G1B[协议信号过滤<br/>基于bounding.yaml信号列表]
+    G1B --> G1C[生成协议连接映射<br/>axim_awaddr → dma_axi4m_awaddr]
+    G1C --> G1D[创建中间配置文件<br/>*_intermediate.yaml]
     
-    G3B --> H[代码生成阶段]
-    H --> H1[生成顶层端口列表]
-    H1 --> H2[生成内部信号声明]
-    H2 --> H3[生成实例化代码]
-    H3 --> H4[处理参数传递]
-    H4 --> H5[生成端口连接]
-    H5 --> H6[输出Verilog文件]
+    G1D --> G2[手动连线处理<br/>connections配置]
+    G2 --> G2A{连线类型判断}
+    G2A -->|常量| G2A1[处理常量连接<br/>16'habcd, 1'b1]
+    G2A -->|位选择| G2A2[处理位选择<br/>signal[7:0]]
+    G2A -->|拼接| G2A3[处理信号拼接<br/>{sig1, sig2, 4'b0}]
+    G2A -->|悬空| G2A4[处理悬空端口<br/>留空不连接]
+    G2A1 --> G2B[更新WireInfo映射]
+    G2A2 --> G2B
+    G2A3 --> G2B
+    G2A4 --> G2B
     
-    H6 --> I[清理和完成]
-    I --> I1[清理PyVerilog缓存文件PLY]
-    I1 --> I2{调试模式?}
-    I2 -->|是| I3[保留中间文件和日志]
-    I2 -->|否| I4[清理临时文件] 
-    I3 --> J[完成]
-    I4 --> J
+    G2B --> G3[自动连线阶段<br/>同名信号匹配]
+    G3 --> G3A{遍历未连接端口}
+    G3A --> G3B[查找同名端口<br/>不同实例间]
+    G3B --> G3C{端口方向检查}
+    G3C -->|input-output匹配| G3D[检查位宽一致性]
+    G3C -->|方向不匹配| G3A
+    G3D -->|位宽匹配| G3E[创建自动连线<br/>更新WireInfo]
+    G3D -->|位宽不匹配| G3F[⚠️ 记录警告信息<br/>继续处理]
+    G3E --> G3A
+    G3F --> G3A
+    G3A -->|全部处理完成| H[📝 代码生成阶段]
     
-    style A fill:#e1f5fe
-    style J fill:#c8e6c9
-    style G1A fill:#fff3e0
-    style G2A fill:#fff3e0
-    style G3A fill:#fff3e0
+    H --> H1[生成顶层端口列表<br/>提取对外接口信号]
+    H1 --> H1A[按实例顺序处理端口<br/>保持生成顺序一致性]
+    H1A --> H1B[区分input/output方向<br/>确定端口声明]
+    H1B --> H2[生成内部信号声明<br/>wire语句自动生成]
+    H2 --> H2A[处理数组信号声明<br/>wire [31:0] addr[1:0]]
+    H2A --> H2B[避免重复声明<br/>去重处理]
+    
+    H2B --> H3[生成实例化代码<br/>模块实例+端口连接]
+    H3 --> H3A[处理参数传递<br/>#(.PARAM(value))]
+    H3A --> H3B[生成端口连接映射<br/>.port(signal)]
+    H3B --> H3C[格式化代码输出<br/>对齐和注释]
+    
+    H3C --> H4[写入Verilog文件<br/>完整模块代码]
+    H4 --> H4A[添加文件头注释<br/>时间戳和版本信息]
+    H4A --> H4B[生成模块声明<br/>module top_name(ports)]
+    H4B --> H4C[输出内部信号声明]
+    H4C --> H4D[输出所有实例化代码]
+    H4D --> H4E[添加endmodule]
+    
+    H4E --> I[🧹 清理和完成阶段]
+    I --> I1[清理PyVerilog缓存<br/>删除PLY文件]
+    I1 --> I2{调试模式启用?}
+    I2 -->|是| I3[保留中间文件<br/>*_intermediate.yaml]
+    I2 -->|否| I4[删除临时文件<br/>清理工作目录]
+    I3 --> I5[保留详细日志<br/>*_debug_*.log]
+    I4 --> I5
+    I5 --> J[✅ 成功完成<br/>生成顶层模块]
+    
+    %% 错误处理路径
+    C1 --> END[❌ 执行失败]
+    F4 -->|解析错误| F_ERR[❌ RTL解析失败<br/>检查Verilog语法]
+    G1C -->|匹配失败| G_WARN[⚠️ 协议信号未匹配<br/>记录警告继续]
+    H4 -->|写入失败| H_ERR[❌ 文件写入失败<br/>检查权限和路径]
+    
+    F_ERR --> END
+    G_WARN --> G2
+    H_ERR --> END
+    
+    %% 样式定义
+    style A fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
+    style J fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px
+    style END fill:#ffcdd2,stroke:#c62828,stroke-width:2px
+    
+    style E fill:#f3e5f5,stroke:#7b1fa2
+    style F fill:#e8f5e8,stroke:#388e3c
+    style G fill:#fff3e0,stroke:#f57c00
+    style H fill:#e3f2fd,stroke:#1976d2
+    style I fill:#f5f5f5,stroke:#757575
+    
+    style C1 fill:#ffcdd2,stroke:#c62828
+    style F_ERR fill:#ffcdd2,stroke:#c62828
+    style G_WARN fill:#fff3e0,stroke:#ff9800
+    style H_ERR fill:#ffcdd2,stroke:#c62828
+    
+    style G1A fill:#fff8e1,stroke:#f9a825
+    style G2A1 fill:#fff8e1,stroke:#f9a825
+    style G3B fill:#fff8e1,stroke:#f9a825
 ```
+
+### 流程关键节点说明
+
+#### 🔍 **解析阶段关键点**
+- **PyVerilog集成**: 使用industry-standard解析器确保语法准确性
+- **数组端口处理**: 特殊处理`signal[1:0]`格式的端口声明
+- **参数化支持**: 动态应用`parameters`配置到模块实例
+
+#### 🔗 **连线阶段优先级**
+1. **协议连线** (`bounding_con`) → 最高优先级，批量处理
+2. **手动连线** (`connections`) → 中等优先级，精确控制
+3. **自动连线** (同名匹配) → 最低优先级，智能补全
+
+#### 📝 **代码生成特色**
+- **顺序保持**: 按配置文件中的实例顺序生成代码
+- **格式优化**: 自动对齐和添加注释，提高可读性
+- **错误处理**: 位宽不匹配等问题的智能处理和警告
+
+#### 🐛 **调试模式增强**
+- **中间文件保留**: `*_intermediate.yaml`包含展开后的完整配置
+- **详细日志**: 记录每个处理步骤的详细信息
+- **临时文件**: 可选保留PyVerilog生成的临时解析文件
 
 ### 数据流向图
 
 ```mermaid
-flowchart LR
-    subgraph "输入数据"
-        A1[YAML配置文件]
-        A2[bounding.yaml]
-        A3[RTL源文件]
+flowchart TD
+    subgraph "输入阶段"
+        A1[命令行参数<br/>-i config.yaml -o output -d]
+        A2[主配置文件<br/>vcn_dma.yaml]
+        A3[协议定义文件<br/>bounding.yaml]
+        A4[RTL源文件<br/>dma_csr.v, dma_core.v]
     end
     
-    subgraph "中间数据结构"
-        B1[Instance对象<br/>模块实例信息]
-        B2[Port对象<br/>端口详细信息]
-        B3[WireInfo对象<br/>连线映射关系]
+    subgraph "解析阶段"
+        B1[ConfigManager<br/>加载YAML配置]
+        B2[PyVerilogParser<br/>解析RTL语法]
+        B3[协议信号映射表<br/>AXI/APB信号列表]
+        B4[Instance对象列表<br/>模块实例+端口信息]
     end
     
-    subgraph "处理阶段"
-        C1[协议信号匹配<br/>axim_* → dma_axi4m_*]
-        C2[手动连线处理<br/>常量和复杂表达式]
-        C3[自动连线<br/>同名信号匹配]
+    subgraph "连线处理阶段"
+        C1[协议连线匹配<br/>axim_* → dma_axi4m_*]
+        C2[生成中间配置<br/>*_intermediate.yaml]
+        C3[手动连线解析<br/>常量/拼接/位选择]
+        C4[自动连线执行<br/>同名信号匹配]
+        C5[WireInfo连线映射<br/>端口→信号关系]
     end
     
-    subgraph "输出结果"
-        D1[顶层Verilog模块]
-        D2[中间配置文件yaml]
-        D3[调试日志文件]
+    subgraph "代码生成阶段"
+        D1[顶层端口提取<br/>外部接口信号]
+        D2[内部信号声明<br/>wire声明语句]
+        D3[实例化代码<br/>模块实例+参数]
+        D4[端口连接映射<br/>port→signal绑定]
     end
     
+    subgraph "输出阶段"
+        E1[顶层Verilog文件<br/>dma_top.v]
+        E2[中间配置文件<br/>调试用途]
+        E3[详细日志文件<br/>处理过程记录]
+        E4[临时文件清理<br/>PLY缓存等]
+    end
+    
+    %% 数据流向连接
     A1 --> B1
-    A2 --> C1
-    A3 --> B2
+    A2 --> B1
+    A3 --> B3
+    A4 --> B2
     
-    B1 --> C1
-    B2 --> C1
-    C1 --> B3
+    B1 --> B4
+    B2 --> B4
+    B3 --> C1
+    B4 --> C1
     
-    B3 --> C2
-    C2 --> B3
+    C1 --> C2
+    C2 --> C3
+    C3 --> C4
+    C4 --> C5
     
-    B3 --> C3
-    C3 --> B3
+    B4 --> D1
+    C5 --> D1
+    C5 --> D2
+    B4 --> D3
+    C5 --> D4
     
-    B1 --> D1
-    B2 --> D1  
-    B3 --> D1
+    D1 --> E1
+    D2 --> E1
+    D3 --> E1
+    D4 --> E1
     
-    C1 --> D2
-    C1 --> D3
-    C2 --> D3
-    C3 --> D3
+    C2 --> E2
+    B1 --> E3
+    C1 --> E3
+    C4 --> E3
+    D1 --> E3
     
-    style A1 fill:#e1f5fe
-    style A2 fill:#e1f5fe
-    style A3 fill:#e1f5fe
-    style D1 fill:#c8e6c9
-    style D2 fill:#fff9c4
-    style D3 fill:#f3e5f5
+    E1 --> E4
+    
+    %% 样式定义
+    style A1 fill:#e3f2fd,stroke:#1976d2
+    style A2 fill:#e3f2fd,stroke:#1976d2
+    style A3 fill:#e3f2fd,stroke:#1976d2
+    style A4 fill:#e3f2fd,stroke:#1976d2
+    
+    style B1 fill:#f3e5f5,stroke:#7b1fa2
+    style B2 fill:#f3e5f5,stroke:#7b1fa2
+    style B3 fill:#f3e5f5,stroke:#7b1fa2
+    style B4 fill:#f3e5f5,stroke:#7b1fa2
+    
+    style C1 fill:#fff3e0,stroke:#f57c00
+    style C2 fill:#fff3e0,stroke:#f57c00
+    style C3 fill:#fff3e0,stroke:#f57c00
+    style C4 fill:#fff3e0,stroke:#f57c00
+    style C5 fill:#fff3e0,stroke:#f57c00
+    
+    style D1 fill:#e8f5e8,stroke:#388e3c
+    style D2 fill:#e8f5e8,stroke:#388e3c
+    style D3 fill:#e8f5e8,stroke:#388e3c
+    style D4 fill:#e8f5e8,stroke:#388e3c
+    
+    style E1 fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px
+    style E2 fill:#fff9c4,stroke:#f9a825
+    style E3 fill:#fce4ec,stroke:#c2185b
+    style E4 fill:#f5f5f5,stroke:#757575
+```
+
+### 关键数据结构流转
+
+#### 1. **配置数据** (YAML → Python对象)
+```
+vcn_dma.yaml → ConfigManager → {
+    'top_module': 'dma_top',
+    'instances': [Instance对象列表],
+    'connections': {端口映射字典},
+    'bounding_con': [协议连线规则]
+}
+```
+
+#### 2. **RTL解析数据** (Verilog → 结构化信息)
+```
+dma_core.v → PyVerilogParser → Instance {
+    'name': 'u_dma_core',
+    'module': 'dma_core', 
+    'ports': [Port对象列表],
+    'parameters': {'DMA_NUM_DESC': 2}
+}
+```
+
+#### 3. **连线映射数据** (规则 → 具体连接)
+```
+协议规则: u_dma_core.axim_* → dma_axi4m_*
+处理结果: WireInfo {
+    'wire_name': 'dma_axi4m_awaddr',
+    'connections': {
+        'u_dma_core.axim_awaddr': 'output[31:0]'
+    }
+}
+```
+
+#### 4. **代码生成数据** (映射 → Verilog代码)
+```
+WireInfo + Instance → CodeGenerator → 生成:
+- 顶层端口声明: output [31:0] dma_axi4m_awaddr
+- 实例端口连接: .axim_awaddr(dma_axi4m_awaddr)
+- 内部信号声明: wire [7:0] csr_dma_maxburst
 ```
 
 ### 核心算法说明
