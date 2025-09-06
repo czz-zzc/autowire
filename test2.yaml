@@ -18,7 +18,7 @@ connections:
 
 
 ##signal group con
-bounding_con:
+bundle_con:
   - apb:
       u_DWC_ether_qos.*_i : apbs_*
       u_DWC_ether_qos.*_o : apbs_*

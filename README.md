@@ -18,7 +18,7 @@ graph TB
     
     subgraph "配置管理层"  
         C[ConfigManager<br/>配置文件加载管理]
-        D[bounding.yaml<br/>协议信号定义]
+        D[bundle.yaml<br/>协议信号定义]
         E[项目配置.yaml<br/>实例和连线配置]
     end
     
@@ -107,7 +107,7 @@ connections:
   u_dma_csr.csr_dma_version: 16'habcd  # DMA版本号
 
 # 协议信号自动连线
-bounding_con:
+bundle_con:
   - axi:                       # AXI4协议信号批量连接
       u_dma_core.axim_*: dma_axi4m_*
   - apb:                       # APB协议信号批量连接  
@@ -237,7 +237,7 @@ flowchart TD
     D --> E[📂 配置加载阶段]
     E --> E1[加载主YAML配置<br/>解析instances/connections]
     E1 --> E2{协议定义文件存在?}
-    E2 -->|是| E2A[加载bounding.yaml<br/>解析AXI/APB/AHB信号]
+    E2 -->|是| E2A[加载bundle.yaml<br/>解析AXI/APB/AHB信号]
     E2 -->|否| E2B[跳过协议定义<br/>仅使用手动连线]
     E2A --> E3[初始化各组件<br/>ConnectionManager/CodeGenerator]
     E2B --> E3
@@ -253,9 +253,9 @@ flowchart TD
     F5 --> F3
     F3 -->|全部完成| G[🔗 连线处理阶段]
     
-    G --> G1[协议连线处理<br/>bounding_con规则]
+    G --> G1[协议连线处理<br/>bundle_con规则]
     G1 --> G1A[通配符匹配展开<br/>axim_* → 匹配所有axim_开头端口]
-    G1A --> G1B[协议信号过滤<br/>基于bounding.yaml信号列表]
+    G1A --> G1B[协议信号过滤<br/>基于bundle.yaml信号列表]
     G1B --> G1C[生成协议连接映射<br/>axim_awaddr → dma_axi4m_awaddr]
     G1C --> G1D[创建中间配置文件<br/>*_intermediate.yaml]
     
@@ -349,7 +349,7 @@ flowchart TD
 - **参数化支持**: 动态应用`parameters`配置到模块实例
 
 #### 🔗 **连线阶段优先级**
-1. **协议连线** (`bounding_con`) → 最高优先级，批量处理
+1. **协议连线** (`bundle_con`) → 最高优先级，批量处理
 2. **手动连线** (`connections`) → 中等优先级，精确控制
 3. **自动连线** (同名匹配) → 最低优先级，智能补全
 
@@ -370,7 +370,7 @@ flowchart TD
     subgraph "输入阶段"
         A1[命令行参数<br/>-i config.yaml -o output -d]
         A2[主配置文件<br/>vcn_dma.yaml]
-        A3[协议定义文件<br/>bounding.yaml]
+        A3[协议定义文件<br/>bundle.yaml]
         A4[RTL源文件<br/>dma_csr.v, dma_core.v]
     end
     
@@ -474,7 +474,7 @@ vcn_dma.yaml → ConfigManager → {
     'top_module': 'dma_top',
     'instances': [Instance对象列表],
     'connections': {端口映射字典},
-    'bounding_con': [协议连线规则]
+    'bundle_con': [协议连线规则]
 }
 ```
 
@@ -511,11 +511,11 @@ WireInfo + Instance → CodeGenerator → 生成:
 
 #### 1. 协议信号匹配算法
 - **通配符展开**: `u_dma_core.axim_*` 匹配所有 `axim_` 前缀端口
-- **协议过滤**: 基于 `bounding.yaml` 中的信号列表进行精确过滤
+- **协议过滤**: 基于 `bundle.yaml` 中的信号列表进行精确过滤
 - **命名转换**: `axim_awaddr` → `dma_axi4m_awaddr`
 
 #### 2. 连线优先级机制
-1. **协议连线** (`bounding_con`) - 最高优先级
+1. **协议连线** (`bundle_con`) - 最高优先级
 2. **手动连线** (`connections`) - 中等优先级  
 3. **自动连线** (同名匹配) - 最低优先级
 
@@ -533,7 +533,7 @@ python autowire.py [-h] [-i INPUT] [-o OUTPUT] [-b BOUNDING] [-d] [--version]
   -h, --help            显示帮助信息并退出
   -i INPUT, --input     输入YAML配置文件 (默认: vcn.yaml)
   -o OUTPUT, --output   输出目录或文件路径 (默认: .)
-  -b BOUNDING, --bounding 协议信号定义文件 (默认: bounding.yaml)  
+  -b BOUNDING, --bounding 协议信号定义文件 (默认: bundle.yaml)  
   -d, --debug           启用调试模式，保存详细日志和中间文件
   --version             显示版本信息
 ```
@@ -581,7 +581,7 @@ WARNING - No protocol signals matched for u_cpu.ahb_*
 ```
 **解决方案：**
 - 检查端口命名是否包含协议信号名
-- 验证 `bounding.yaml` 中协议信号定义
+- 验证 `bundle.yaml` 中协议信号定义
 - 使用调试模式 `-d` 查看匹配详情
 
 ### 3. 位宽不匹配
@@ -610,7 +610,7 @@ tail -f debug/autowire_debug_*.log
 ```
 autowire-master/
 ├── autowire.py                # 主入口脚本
-├── bounding.yaml             # 协议信号定义文件
+├── bundle.yaml             # 协议信号定义文件
 ├── vcn_dma.yaml              # DMA配置示例
 ├── src/                      # 核心源代码
 │   ├── generator.py          # 主控制器

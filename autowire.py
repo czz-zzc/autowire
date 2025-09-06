@@ -26,7 +26,7 @@ def main():
 Examples:
   python autowire_v2.py -i vcn.yaml -o output/
   python autowire_v2.py -i vcn.yaml -o output/soc_top.v -d
-  python autowire_v2.py -i vcn.yaml -b custom_bounding.yaml -o output/ -d
+  python autowire_v2.py -i vcn.yaml -b custom_bundle.yaml -o output/ -d
         """
     )
     
@@ -34,8 +34,8 @@ Examples:
                        help='Input YAML configuration file (default: vcn.yaml)')
     parser.add_argument('-o', '--output', default='.',
                        help='Output directory or .v/.sv file path (default: .)')
-    parser.add_argument('-b', '--bounding', default='bounding.yaml',
-                       help='Protocol signals definition file (default: bounding.yaml)')
+    parser.add_argument('-b', '--bounding', default='bundle.yaml',
+                       help='Protocol signals definition file (default: bundle.yaml)')
     parser.add_argument('-d', '--debug', action='store_true',
                        help='Enable debug output')
     parser.add_argument('--version', action='version', version='AutoWire v2.0.0')

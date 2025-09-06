@@ -22,7 +22,7 @@ connections:
   u_dma_csr.csr_dma_version: 16'habcd
 
 # bundle connections
-bounding_con:
+bundle_con:
   - axi:
       u_dma_core.axim_*    : dma_axi4m_*
   - apb:

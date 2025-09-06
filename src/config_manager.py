@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 class ConfigManager:
     """配置管理器"""
     
-    def __init__(self, config_file: str, bounding_file: str = 'bounding.yaml'):
+    def __init__(self, config_file: str, bounding_file: str = 'bundle.yaml'):
         self.config_file = config_file
         self.bounding_file = self._resolve_bounding_file(bounding_file, config_file)
         self.config: Dict[str, Any] = {}
@@ -92,13 +92,13 @@ class ConfigManager:
             return {}
         return connections
         
-    def get_bounding_config(self) -> Dict[str, Any]:
+    def get_bundle_config(self) -> Dict[str, Any]:
         """获取协议连接配置"""
-        bounding_config = self.config.get('bounding_con', {})
-        if bounding_config is None:
-            logger.debug("No protocol connections found (bounding_con is empty)")
+        bundle_config = self.config.get('bundle_con', {})
+        if bundle_config is None:
+            logger.debug("No protocol connections found (bundle_con is empty)")
             return {}
-        return bounding_config
+        return bundle_config
         
     def get_protocol_signals(self) -> Dict[str, List[str]]:
         """获取协议信号定义"""
@@ -143,9 +143,9 @@ class ConfigManager:
                            
         intermediate_config['connections'] = merged_connections
         
-        # 移除bounding_con
-        if 'bounding_con' in intermediate_config:
-            del intermediate_config['bounding_con']
+        # 移除bundle_con
+        if 'bundle_con' in intermediate_config:
+            del intermediate_config['bundle_con']
             
         # 生成中间文件路径
         intermediate_file = self._generate_intermediate_file_path(output_path)

@@ -4,7 +4,7 @@
 连线管理模块
 负责处理各种类型的连线，包括：
 1. 手动连线（connections）
-2. 协议连线（bounding_con）  
+2. 协议连线（bundle_con）  
 3. 自动连线
 """
 import re
@@ -52,9 +52,9 @@ class ConnectionManager:
             # 处理连接
             self._process_single_connection(target_port, conn_value, conn_key)
             
-    def process_protocol_connections(self, bounding_config: Dict) -> Dict[str, str]:
+    def process_protocol_connections(self, bundle_config: Dict) -> Dict[str, str]:
         """处理协议连线配置，返回生成的连线"""
-        if not bounding_config:
+        if not bundle_config:
             logger.info("No protocol connections found")
             return {}
             
@@ -62,18 +62,18 @@ class ConnectionManager:
         generated_connections = {}
         
         # 处理不同的协议配置格式
-        if isinstance(bounding_config, list):
+        if isinstance(bundle_config, list):
             # 列表格式：[{protocol: mappings}, ...]
-            for bounding_item in bounding_config:
-                if isinstance(bounding_item, dict):
-                    for protocol, mappings in bounding_item.items():
+            for bundle_item in bundle_config:
+                if isinstance(bundle_item, dict):
+                    for protocol, mappings in bundle_item.items():
                         protocol = protocol.lower()
                         self._process_protocol_mappings(
                             protocol, mappings, generated_connections
                         )
-        elif isinstance(bounding_config, dict):
+        elif isinstance(bundle_config, dict):
             # 字典格式：{protocol: mappings, ...}
-            for protocol, mappings in bounding_config.items():
+            for protocol, mappings in bundle_config.items():
                 protocol = protocol.lower()
                 self._process_protocol_mappings(
                     protocol, mappings, generated_connections

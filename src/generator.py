@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 class AutoWireGenerator:
     """重构后的AutoWire生成器"""
     
-    def __init__(self, config_file: str, bounding_file: str = 'bounding.yaml', debug: bool = False):
+    def __init__(self, config_file: str, bounding_file: str = 'bundle.yaml', debug: bool = False):
         # 设置调试级别
         set_debug_level(debug)
         self.debug = debug  # 保存调试标志
@@ -184,8 +184,8 @@ class AutoWireGenerator:
         self.connection_manager.set_instances(self.instances)
         
         # 1. 处理协议连线，生成中间连接
-        bounding_config = self.config_manager.get_bounding_config()
-        generated_connections = self.connection_manager.process_protocol_connections(bounding_config)
+        bundle_config = self.config_manager.get_bundle_config()
+        generated_connections = self.connection_manager.process_protocol_connections(bundle_config)
         
         # 2. 如果有生成的连接，创建中间配置文件并重新加载
         if generated_connections:

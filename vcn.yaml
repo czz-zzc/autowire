@@ -33,7 +33,7 @@ connections:
   u_uart.test_out:
 
 ##signal group con
-bounding_con:
+bundle_con:
   - ahb:
       u_cpu.a_*    : cpu_ahbm_*
       u_uart.*_ahb  :  cpu_ahbm_*
