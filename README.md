@@ -60,6 +60,7 @@ graph TB
 - 🔧 **智能连线**: 协议信号自动识别（AXI、APB、AHB等）+ 同名信号匹配
 - 📝 **YAML配置**: 直观的配置文件，支持参数化实例和复杂连接表达式  
 - 🎯 **精确解析**: 基于 PyVerilog 的语法解析，支持二维数组端口、宏定义处理等
+- 🔌 **信号输出**: 将内部信号暴露为顶层输出端口，便于调试和监控
 - 🐛 **调试友好**: 详细日志输出，中间配置文件保存，临时文件可选保留
 - 🚀 **模块化架构**: 重构后的 v2.0 版本，组件化设计便于扩展
 
@@ -111,6 +112,11 @@ bounding_con:
       u_dma_core.axim_*: dma_axi4m_*
   - apb:                       # APB协议信号批量连接  
       u_dma_csr.*: dma_apbs_*
+
+# 内部信号顶层输出 (新功能)
+top_add:
+  - csr_dma_done                    # 将内部信号输出到顶层
+  - csr_dma_err                     # DMA错误状态信号
 ```
 
 ### 3. 运行AutoWire
@@ -148,6 +154,10 @@ module dma_top(
     output  [31:0]  dma_axi4m_awaddr,
     output  [7:0]   dma_axi4m_awlen,
     // ... 完整的AXI4信号
+
+    // top_add输出端口（内部信号暴露）
+    output          csr_dma_done,              // DMA完成状态
+    output          csr_dma_err                // DMA错误状态  
 );
 
 // 内部连线信号（自动声明）
@@ -197,13 +207,18 @@ endmodule
 ✅ **自动连线**: 
 - 81个端口全部自动连接，无需手动配置
 
+✅ **内部信号输出**: 
+- `top_add` 配置将内部信号暴露为顶层输出端口
+- 支持标量和数组信号，位置自动排列在端口列表末尾
+
 ### 6. 调试信息
 
 调试模式下生成详细日志：
 ```
 2025-09-03 19:54:31 - INFO - Generated 44 protocol connections
-2025-09-03 19:54:31 - INFO - Auto-connection completed: 81/81 ports connected  
-2025-09-03 19:54:31 - INFO - Generated 48 top-level ports
+2025-09-03 19:54:31 - INFO - Auto-connection completed: 81/81 ports connected
+2025-09-03 19:54:31 - INFO - Processing top_add signals: ['csr_dma_done', 'csr_dma_err']  
+2025-09-03 19:54:31 - INFO - Generated 51 top-level ports (including 3 top_add ports)
 2025-09-03 19:54:31 - INFO - Successfully generated ./dma_rtl_gen\dma_top.v
 ```
 
@@ -537,76 +552,6 @@ python autowire.py -i simple_config.yaml
 
 # 调试模式，查看详细处理过程
 python autowire.py -i debug_config.yaml -o ./debug -d
-```
-
-## 配置文件详解
-
-### 主配置文件格式
-
-```yaml
-# 基本配置
-top_module: dma_top                    # 生成的顶层模块名
-
-# 宏定义文件 (可选)
-define_files:
-  - ./rtl/defines.vh                   # 全局宏定义
-
-# RTL 源文件路径
-rtl_path:
-  - ./dma_rtl/dma_csr.v               # 支持相对路径
-  - ./dma_rtl/dma_core.v              # 自动发现模块
-
-# 模块实例定义
-instances:
-  - module: dma_csr                    # 模块名（必须与RTL中一致）
-    name: u_dma_csr                    # 实例名
-  - module: dma_core 
-    name: u_dma_core
-    parameters:                        # 参数化配置
-      DMA_NUM_DESC: 2
-      DATA_WIDTH: 64
-
-# 手动连线配置
-connections:
-  u_dma_csr.csr_dma_version: 16'habcd # 常量连接
-  u_dma_core.enable: 1'b1              # 使能信号
-  u_debug.test_port:                   # 悬空连接（留空）
-  u_mux.sel: "2'b01"                   # 字符串形式常量
-
-# 协议信号自动连线
-bounding_con:
-  - axi:                               # 协议类型
-      u_dma_core.axim_*: dma_axi4m_*  # 通配符匹配
-  - apb:
-      u_dma_csr.*: dma_apbs_*         # 全端口匹配
-```
-
-### 协议信号定义文件 (`bounding.yaml`)
-
-```yaml
-protocol_signals:
-  # AXI4 协议完整信号列表
-  axi:
-    - awaddr, awlen, awsize, awburst, awvalid, awready
-    - wdata, wstrb, wlast, wvalid, wready
-    - bresp, bvalid, bready
-    - araddr, arlen, arsize, arburst, arvalid, arready
-    - rdata, rresp, rlast, rvalid, rready
-    - awid, bid, arid, rid
-    - awlock, awcache, awprot, awqos
-    - arlock, arcache, arprot, arqos
-    
-  # APB 协议信号列表
-  apb:
-    - paddr, pwdata, prdata
-    - pwrite, psel, penable, pready
-    - pslverr                          # 可选错误信号
-    
-  # AHB 协议信号列表  
-  ahb:
-    - haddr, hwrite, hsize, hburst, htrans
-    - hwdata, hrdata, hready, hresp
-    - hprot, hmastlock, hsel
 ```
 
 ### 连接语法支持

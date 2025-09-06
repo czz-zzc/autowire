@@ -104,6 +104,19 @@ class ConfigManager:
         """获取协议信号定义"""
         return self.protocol_signals
         
+    def get_top_add_config(self) -> List[str]:
+        """获取top_add配置"""
+        top_add_config = self.config.get('top_add', [])
+        if top_add_config is None:
+            logger.debug("No top_add signals found (top_add is empty)")
+            return []
+        elif isinstance(top_add_config, str):
+            return [top_add_config]
+        elif isinstance(top_add_config, list):
+            return [signal for signal in top_add_config if signal is not None]
+        else:
+            return []
+        
     def create_intermediate_config(self, generated_connections: Dict[str, str], 
                                  output_path: Optional[str] = None) -> Optional[str]:
         """创建包含生成连接的中间配置文件"""

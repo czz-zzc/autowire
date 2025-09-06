@@ -100,7 +100,8 @@ class AutoWireGenerator:
         
         # 初始化代码生成器
         top_module_name = self.config_manager.get_top_module_name()
-        self.code_generator = VerilogCodeGenerator(top_module_name)
+        top_add_signals = self.config_manager.get_top_add_config()
+        self.code_generator = VerilogCodeGenerator(top_module_name, top_add_signals)
         
     def _parse_phase(self) -> bool:
         """解析阶段"""

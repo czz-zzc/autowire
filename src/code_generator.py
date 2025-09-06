@@ -16,8 +16,9 @@ logger = get_logger(__name__)
 class VerilogCodeGenerator:
     """Verilog代码生成器"""
     
-    def __init__(self, top_module_name: str = "soc_top"):
+    def __init__(self, top_module_name: str = "soc_top", top_add_signals: List[str] = None):
         self.top_module_name = top_module_name
+        self.top_add_signals = top_add_signals if top_add_signals else []
         self.instances: List[Instance] = []
         self.wire_set: Dict[str, WireInfo] = {}
         self.top_ports: List[Port] = []
@@ -67,7 +68,7 @@ class VerilogCodeGenerator:
                         added_ports.add(wire_name)
                         logger.debug(f"Added top input port: {wire_name} from {instance.instance_name}, array: {wire_info.is_array}")
                         
-                    # 只有输出端，需要输出到顶层
+                    # 只有输出端，需要输出到顶层（但不在top_add中的信号）
                     elif not wire_info.has_input and wire_info.has_output:
                         top_port = Port(
                             name=wire_name,
@@ -114,6 +115,35 @@ class VerilogCodeGenerator:
                 logger.debug(f"Added remaining top output port: {wire_name}, array: {wire_info.is_array}")
                 
         self.top_ports.extend(remaining_wires)
+        
+        # 最后处理 top_add 中指定的信号，如果在 wire_set 中存在且有输出端，则生成 output 端口
+        if self.top_add_signals:
+            logger.info(f"Processing top_add signals: {self.top_add_signals}")
+            top_add_ports = []
+            for signal_name in self.top_add_signals:
+                if signal_name in self.wire_set:
+                    wire_info = self.wire_set[signal_name]
+                    # 如果信号有输出端，则作为顶层 output 端口
+                    if wire_info.has_output:
+                        top_port = Port(
+                            name=signal_name,
+                            direction="output",
+                            width=wire_info.output_width,
+                            width_value=wire_info.output_width_value,
+                            is_array=wire_info.is_array,
+                            array_size=wire_info.array_size,
+                            source_instance="top_add"
+                        )
+                        top_add_ports.append(top_port)
+                        added_ports.add(signal_name)
+                        logger.info(f"Added top_add output port: {signal_name}, array: {wire_info.is_array}")
+                    else:
+                        logger.warning(f"Signal '{signal_name}' in top_add has no output end, skipping")
+                else:
+                    logger.warning(f"Signal '{signal_name}' in top_add not found in wire_set, skipping")
+            
+            self.top_ports.extend(top_add_ports)
+        
         logger.info(f"Generated {len(self.top_ports)} top-level ports")
         
     def generate_top_module(self, output_file: str):
@@ -217,7 +247,14 @@ class VerilogCodeGenerator:
         """生成对齐的内部信号声明"""
         internal_wires = []
         
+        # 收集所有顶层端口的名称，避免重复声明
+        top_port_names = set(port.name for port in self.top_ports)
+        
         for wire_name, wire_info in self.wire_set.items():
+            # 跳过已经作为顶层端口的信号
+            if wire_name in top_port_names:
+                continue
+                
             if wire_info.has_input and wire_info.has_output:
                 # 检查位宽一致性
                 if wire_info.input_width_value != wire_info.output_width_value:
