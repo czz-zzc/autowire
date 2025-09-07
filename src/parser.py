@@ -130,27 +130,58 @@ class PyVerilogParser:
         专门处理无位宽的二维数组端口声明:
         将 input        csr_desc_enable             [DMA_NUM_DESC-1:0],
         转换为 input    [DMA_NUM_DESC-1:0]  csr_desc_enable,
+        
+        支持两种模式:
+        1. input/output/inout + 空格 + 信号名 + 空格(可多个) + [数组维度]
+        2. input/output/inout + 空格 + reg/wire + 空格 + 信号名 + 空格(可多个) + [数组维度]
         """
         lines = content.split('\n')
         normalized_lines = []
         
         for line in lines:
             # 处理无位宽的二维数组端口声明
-            # 模式: input/output/inout + 空格 + 信号名 + 空格(可多个) + [数组维度]
-            pattern = r'^(\s*)(input|output|inout)(\s+)(\w+)(\s*)(\[[^\]]+\])(\s*[,;]?\s*)(.*?)$'
-            match = re.match(pattern, line)
+            # 模式1: input/output/inout + 空格 + 信号名 + 空格(可多个) + [数组维度]
+            pattern1 = r'^(\s*)(input|output|inout)(\s+)(\w+)(\s*)(\[[^\]]+\])(\s*[,;]?\s*)(.*?)$'
+            # 模式2: input/output/inout + 空格 + reg/wire + 空格 + 信号名 + 空格(可多个) + [数组维度]
+            pattern2 = r'^(\s*)(input|output|inout)(\s+)(reg|wire)(\s+)(\w+)(\s*)(\[[^\]]+\])(\s*[,;]?\s*)(.*?)$'
             
-            if match:
+            match1 = re.match(pattern1, line)
+            match2 = re.match(pattern2, line)
+            
+            if match2:
+                # 检查是否已经有位宽信息（即是否为 port_type [width] signal_name 格式）
+                pre_check_pattern = r'^(\s*)(input|output|inout)(\s+)(reg|wire)?(\s*)(\[[^\]]+\])(\s+)(\w+)'
+                if not re.match(pre_check_pattern, line):
+                    # 这是无位宽的端口声明（模式2），需要标准化
+                    indent = match2.group(1)
+                    port_type = match2.group(2)
+                    reg_wire = match2.group(4)
+                    signal_name = match2.group(6)
+                    array_part = match2.group(8)  # [DMA_NUM_DESC-1:0] 或 [0:1] 等数组维度
+                    comma_semicolon = match2.group(9).rstrip()
+                    comment = match2.group(10)
+                    
+                    # 标准化格式: port_type reg/wire [array_part] signal_name
+                    normalized_line = f"{indent}{port_type} {reg_wire} {array_part:<20} {signal_name}"
+                    if comma_semicolon:
+                        normalized_line += comma_semicolon
+                    if comment:
+                        normalized_line += comment
+                    
+                    normalized_lines.append(normalized_line)
+                    continue
+            elif match1:
                 # 检查是否已经有位宽信息（即是否为 port_type [width] signal_name 格式）
                 pre_check_pattern = r'^(\s*)(input|output|inout)(\s+)(\[[^\]]+\])(\s+)(\w+)'
-                if not re.match(pre_check_pattern, line):
-                    # 这是无位宽的端口声明，需要标准化
-                    indent = match.group(1)
-                    port_type = match.group(2)
-                    signal_name = match.group(4)
-                    array_part = match.group(6)  # [DMA_NUM_DESC-1:0] 或 [0:1] 等数组维度
-                    comma_semicolon = match.group(7).rstrip()
-                    comment = match.group(8)
+                # 同时检查是否包含reg/wire关键字，避免错误匹配
+                if not re.match(pre_check_pattern, line) and not re.search(r'\b(reg|wire)\b', line):
+                    # 这是无位宽的端口声明（模式1），需要标准化
+                    indent = match1.group(1)
+                    port_type = match1.group(2)
+                    signal_name = match1.group(4)
+                    array_part = match1.group(6)  # [DMA_NUM_DESC-1:0] 或 [0:1] 等数组维度
+                    comma_semicolon = match1.group(7).rstrip()
+                    comment = match1.group(8)
                     
                     # 标准化格式: port_type [array_part] signal_name
                     normalized_line = f"{indent}{port_type:<8} {array_part:<20} {signal_name}"
@@ -170,9 +201,16 @@ class PyVerilogParser:
         # 统计处理的端口数量
         processed_ports = 0
         for line in lines:
-            pattern = r'^(\s*)(input|output|inout)(\s+)(\w+)(\s*)(\[[^\]]+\])(\s*[,;]?\s*)'
-            pre_check_pattern = r'^(\s*)(input|output|inout)(\s+)(\[[^\]]+\])(\s+)(\w+)'
-            if re.match(pattern, line) and not re.match(pre_check_pattern, line):
+            # 检查模式1和模式2的匹配情况
+            pattern1 = r'^(\s*)(input|output|inout)(\s+)(\w+)(\s*)(\[[^\]]+\])(\s*[,;]?\s*)'
+            pattern2 = r'^(\s*)(input|output|inout)(\s+)(reg|wire)(\s+)(\w+)(\s*)(\[[^\]]+\])(\s*[,;]?\s*)'
+            pre_check_pattern = r'^(\s*)(input|output|inout)(\s+)(reg|wire)?(\s*)(\[[^\]]+\])(\s+)(\w+)'
+            
+            # 检查模式2
+            if re.match(pattern2, line) and not re.match(pre_check_pattern, line):
+                processed_ports += 1
+            # 检查模式1（排除包含reg/wire的情况）
+            elif re.match(pattern1, line) and not re.match(pre_check_pattern, line) and not re.search(r'\b(reg|wire)\b', line):
                 processed_ports += 1
         
         if processed_ports > 0:
