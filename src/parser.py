@@ -105,25 +105,56 @@ class PyVerilogParser:
         return module_files
     
     def _create_combined_content(self, file_path: str) -> str:
-        """创建合并的文件内容"""
+        """创建合并的文件内容，展开include文件"""
         combined_content = ""
         
-        # 添加define文件内容
+        # 添加define文件内容并展开其中的include
         for define_file in self.define_files:
             try:
-                with open(define_file, 'r', encoding='utf-8') as f:
-                    combined_content += f.read() + '\n'
+                content = self._expand_includes(define_file)
+                combined_content += content + '\n'
             except Exception as e:
                 logger.warning(f"Error reading define file {define_file}: {e}")
         
-        # 添加RTL文件内容并进行端口格式标准化
-        with open(file_path, 'r', encoding='utf-8') as f:
-            rtl_content = f.read()
+        # 添加RTL文件内容并进行端口格式标准化，同时展开include
+        try:
+            rtl_content = self._expand_includes(file_path)
             # 标准化端口声明格式
             rtl_content = self._normalize_port_declarations(rtl_content)
             combined_content += rtl_content
+        except Exception as e:
+            logger.error(f"Error processing RTL file {file_path}: {e}")
             
         return combined_content
+    
+    def _expand_includes(self, file_path: str, processed_files: Optional[set] = None) -> str:
+        """处理include文件，将include指令注释掉"""
+        if not os.path.exists(file_path):
+            logger.warning(f"Include file not found: {file_path}")
+            return f"// Include file not found: {file_path}\n"
+            
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except Exception as e:
+            logger.warning(f"Error reading file {file_path}: {e}")
+            return f"// Error reading file: {file_path}\n"
+        
+        # 查找并注释掉include指令
+        lines = content.split('\n')
+        processed_lines = []
+        
+        for line in lines:
+            # 匹配 `include "filename" 或 `include <filename>
+            include_match = re.match(r'\s*`include\s+["\<]([^"\>]+)["\>]', line)
+            if include_match:
+                include_file = include_match.group(1)
+                # 将include指令注释掉
+                processed_lines.append(f"// {line.strip()} // Commented out - already included via yaml")
+            else:
+                processed_lines.append(line)
+        
+        return '\n'.join(processed_lines)
     
     def _normalize_port_declarations(self, content: str) -> str:
         """标准化端口声明格式

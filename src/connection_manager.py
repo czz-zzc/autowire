@@ -288,7 +288,12 @@ class ConnectionManager:
         logger.debug(f"Using {protocol.upper()} protocol signals ({len(signal_list)} signals)")
         
         for source_pattern, target_pattern in mappings.items():
-            logger.debug(f"Processing mapping: {source_pattern} -> {target_pattern}")
+            # 处理空值（悬空信号）
+            if target_pattern is None:
+                target_pattern = ""
+                logger.debug(f"Processing mapping: {source_pattern} -> <floating/unconnected>")
+            else:
+                logger.debug(f"Processing mapping: {source_pattern} -> {target_pattern}")
             
             # 解析source_pattern (如 u_cpu.a_*)
             if '.' not in source_pattern:
@@ -317,7 +322,10 @@ class ConnectionManager:
                 for port, target_name in matched_ports:
                     source_conn = f"{instance_name}.{port.name}"
                     generated_connections[source_conn] = target_name
-                    logger.debug(f"Generated: {source_conn} -> {target_name}")
+                    if target_name == "":
+                        logger.debug(f"Generated floating connection: {source_conn} -> <unconnected>")
+                    else:
+                        logger.debug(f"Generated: {source_conn} -> {target_name}")
                     
     def _match_wildcard_ports(self, source_pattern: str, target_pattern: str, 
                              ports: List[Port], signal_list: List[str]) -> List[Tuple[Port, str]]:
@@ -355,6 +363,10 @@ class ConnectionManager:
     def _generate_target_name(self, target_pattern: str, captured_parts: List[str], 
                              original_name: str) -> str:
         """根据目标模式生成目标信号名"""
+        # 处理空模式（悬空信号）
+        if not target_pattern or target_pattern.strip() == "":
+            return ""
+            
         if '*' not in target_pattern:
             return target_pattern.lower()
             

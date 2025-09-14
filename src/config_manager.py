@@ -57,24 +57,44 @@ class ConfigManager:
         return self.config.get('top_module', 'soc_top')
         
     def get_define_files(self) -> List[str]:
-        """获取宏定义文件列表"""
+        """获取宏定义文件列表，将相对路径转换为绝对路径"""
         define_files = self.config.get('define_files', [])
         if isinstance(define_files, str):
-            return [define_files]
+            define_files = [define_files]
         elif isinstance(define_files, list):
-            return [f for f in define_files if f is not None]
+            define_files = [f for f in define_files if f is not None]
         else:
             return []
             
+        # 将相对路径转换为基于配置文件目录的绝对路径
+        config_dir = os.path.dirname(os.path.abspath(self.config_file))
+        resolved_files = []
+        for file_path in define_files:
+            if os.path.isabs(file_path):
+                resolved_files.append(file_path)
+            else:
+                resolved_files.append(os.path.join(config_dir, file_path))
+        return resolved_files
+            
     def get_rtl_files(self) -> List[str]:
-        """获取RTL文件列表"""
+        """获取RTL文件列表，将相对路径转换为绝对路径"""
         rtl_files = self.config.get('rtl_path', [])
         if isinstance(rtl_files, str):
-            return [rtl_files]
+            rtl_files = [rtl_files]
         elif isinstance(rtl_files, list):
-            return [f for f in rtl_files if f is not None]
+            rtl_files = [f for f in rtl_files if f is not None]
         else:
             return []
+            
+        # 将相对路径转换为基于配置文件目录的绝对路径
+        config_dir = os.path.dirname(os.path.abspath(self.config_file))
+        resolved_files = []
+        for file_path in rtl_files:
+            if os.path.isabs(file_path):
+                resolved_files.append(file_path)
+            else:
+                resolved_files.append(os.path.join(config_dir, file_path))
+        return resolved_files
             
     def get_instances_config(self) -> List[Dict[str, Any]]:
         """获取实例配置"""
