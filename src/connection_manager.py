@@ -181,8 +181,20 @@ class ConnectionManager:
         
         if connection_type == 'constant' or connection_type == 'floating':
             if connection_type == 'floating':
-                target_port.connect_wire = " "
-                logger.debug(f"Set floating connection: {conn_key} -> open(unused)")
+                # 对于空值连接，根据端口方向进行处理
+                if target_port.direction.lower() == 'output':
+                    # 输出端口悬空（不连接）
+                    target_port.connect_wire = " "
+                    logger.debug(f"Set floating connection for output port: {conn_key} -> open(unused)")
+                else:
+                    # 输入端口绑定到0
+                    if target_port.width_value > 1:
+                        # 多位端口使用对应位宽的0
+                        target_port.connect_wire = f"{target_port.width_value}'b0"
+                    else:
+                        # 单位端口使用1'b0
+                        target_port.connect_wire = "1'b0"
+                    logger.debug(f"Set tie-to-zero connection for input port: {conn_key} -> {target_port.connect_wire}")
             else:
                 target_port.connect_wire = conn_value_str
                 logger.debug(f"Set constant connection: {conn_key} -> '{conn_value_str}'")
