@@ -119,8 +119,15 @@ class PyVerilogParser:
         # 添加RTL文件内容并进行端口格式标准化，同时展开include
         try:
             rtl_content = self._expand_includes(file_path)
+            
+            # 注释掉imports语句
+            rtl_content = self._comment_out_imports(rtl_content)
+            
+            # 移除模块实现代码，只保留端口声明
+            rtl_content = self._remove_module_implementation(rtl_content)
             # 标准化端口声明格式
             rtl_content = self._normalize_port_declarations(rtl_content)
+
             combined_content += rtl_content
         except Exception as e:
             logger.error(f"Error processing RTL file {file_path}: {e}")
@@ -151,6 +158,23 @@ class PyVerilogParser:
                 include_file = include_match.group(1)
                 # 将include指令注释掉
                 processed_lines.append(f"// {line.strip()} // Commented out - already included via yaml")
+            else:
+                processed_lines.append(line)
+        
+        return '\n'.join(processed_lines)
+    
+    def _comment_out_imports(self, content: str) -> str:
+        """将SystemVerilog imports语句注释掉"""
+        lines = content.split('\n')
+        processed_lines = []
+        
+        for line in lines:
+            # 匹配 imports 语句
+            # 支持各种格式：imports pkg::*; 或 import pkg::item;
+            import_match = re.match(r'\s*import\s+.*?;', line)
+            if import_match:
+                # 将import语句注释掉
+                processed_lines.append(f"// {line.strip()} // Commented out - SystemVerilog import not supported by pyverilog")
             else:
                 processed_lines.append(line)
         
@@ -246,6 +270,118 @@ class PyVerilogParser:
         
         if processed_ports > 0:
             logger.debug(f"Port normalization completed for {processed_ports} array port declarations")
+        
+        return result
+    
+    def _remove_module_implementation(self, content: str) -> str:
+        """移除模块实现代码，只保留模块声明、端口信息和参数定义
+        
+        处理流程：
+        1. 识别module声明开始
+        2. 保留参数定义和端口声明部分
+        3. 移除模块实现部分（从第一个非端口声明的语句开始到endmodule前）
+        4. 保留endmodule语句
+        """
+        lines = content.split('\n')
+        processed_lines = []
+        
+        inside_module = False
+        module_name = ""
+        ports_section_ended = False
+        paren_count = 0  # 追踪括号层级
+        found_semicolon = False  # 是否找到端口列表结束的分号
+        
+        for line_num, line in enumerate(lines):
+            original_line = line
+            stripped_line = line.strip()
+            
+            # 检测module声明开始
+            module_match = re.match(r'\s*module\s+(\w+)', stripped_line)
+            if module_match and not inside_module:
+                inside_module = True
+                module_name = module_match.group(1)
+                ports_section_ended = False
+                paren_count = 0
+                found_semicolon = False
+                processed_lines.append(original_line)
+                logger.debug(f"Found module start: {module_name}")
+                continue
+            
+            # 如果不在模块内部，保留所有行（包括注释和空行）
+            if not inside_module:
+                processed_lines.append(original_line)
+                continue
+            
+            # 如果在模块内部
+            if inside_module:
+                # 检测endmodule
+                if re.match(r'\s*endmodule', stripped_line):
+                    processed_lines.append(original_line)
+                    inside_module = False
+                    logger.debug(f"Module {module_name} processing completed")
+                    continue
+                
+                # 处理空行和注释行
+                if not stripped_line or stripped_line.startswith('//') or stripped_line.startswith('/*'):
+                    # 如果端口部分还没结束，保留注释和空行
+                    if not ports_section_ended:
+                        processed_lines.append(original_line)
+                    # 如果端口部分已结束，跳过所有注释和空行
+                    continue
+                
+                # 如果端口部分还没结束，需要判断是否到达端口声明结束
+                if not ports_section_ended:
+                    # 统计括号层级
+                    paren_count += line.count('(') - line.count(')')
+                    
+                    # 检查是否有分号（端口列表结束标志）
+                    if ';' in line and paren_count <= 0:
+                        found_semicolon = True
+                        processed_lines.append(original_line)
+                        
+                        # 检查下一行是否是端口声明或参数声明
+                        next_line_is_port = False
+                        if line_num + 1 < len(lines):
+                            next_stripped = lines[line_num + 1].strip()
+                            if (next_stripped.startswith(('input', 'output', 'inout', 'parameter', 'localparam')) or
+                                not next_stripped or next_stripped.startswith('//')):
+                                next_line_is_port = True
+                        
+                        if not next_line_is_port:
+                            ports_section_ended = True
+                            logger.debug(f"Ports section ended for module {module_name}, removing implementation")
+                        continue
+                    
+                    # 检查是否是参数或端口声明行
+                    if (stripped_line.startswith(('parameter', 'localparam', 'input', 'output', 'inout')) or
+                        paren_count > 0 or not found_semicolon):
+                        processed_lines.append(original_line)
+                        continue
+                    
+                    # 如果找到了分号但括号计数异常，可能是复杂的端口声明
+                    if found_semicolon and paren_count <= 0:
+                        # 额外检查：如果这行看起来像端口声明，保留它
+                        if re.match(r'\s*(input|output|inout|parameter|localparam)\s+', stripped_line):
+                            processed_lines.append(original_line)
+                            continue
+                        else:
+                            ports_section_ended = True
+                            logger.debug(f"Ports section ended for module {module_name}, removing implementation")
+                
+                # 如果端口部分已结束，直接跳过所有实现代码（除了endmodule）
+                if ports_section_ended:
+                    # 直接跳过所有实现代码
+                    continue
+                else:
+                    # 还在端口声明部分
+                    processed_lines.append(original_line)
+        
+        result = '\n'.join(processed_lines)
+        
+        # 统计处理的模块数量
+        removed_modules = content.count('module ') if content.count('module ') > 0 else 0
+        if removed_modules > 0:
+            logger.debug(f"Module implementation removal completed for {removed_modules} modules")
         
         return result
     
@@ -810,8 +946,8 @@ class PyVerilogParser:
             content = re.sub(r'//.*?$', '', content, flags=re.MULTILINE)
             content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
             
-            # 查找模块定义
-            return re.findall(r'module\s+(\w+)\s*(?:#.*?)?\s*\(', content, re.DOTALL)
+            # 查找模块定义 - 简单匹配module关键字后的第一个标识符
+            return re.findall(r'module\s+(\w+)', content)
         except Exception as e:
             logger.error(f"Error reading file {rtl_file}: {e}")
             return []
