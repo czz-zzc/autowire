@@ -198,7 +198,8 @@ class ConfigManager:
             candidates.append(os.path.join(config_dir, bounding_file))
             
         # 脚本目录
-        script_dir = os.path.dirname(os.path.abspath(__file__))
+        #script_dir = os.path.dirname(os.path.abspath(__file__))
+        script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         candidates.append(os.path.join(script_dir, bounding_file))
         
         for candidate in candidates:
