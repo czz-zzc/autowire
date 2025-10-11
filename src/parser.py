@@ -290,6 +290,7 @@ class PyVerilogParser:
         ports_section_ended = False
         paren_count = 0  # 追踪括号层级
         found_semicolon = False  # 是否找到端口列表结束的分号
+        in_multi_line_statement = False  # 标记是否在多行语句中
         
         for line_num, line in enumerate(lines):
             original_line = line
@@ -303,6 +304,7 @@ class PyVerilogParser:
                 ports_section_ended = False
                 paren_count = 0
                 found_semicolon = False
+                in_multi_line_statement = False
                 processed_lines.append(original_line)
                 logger.debug(f"Found module start: {module_name}")
                 continue
@@ -334,28 +336,64 @@ class PyVerilogParser:
                     # 统计括号层级
                     paren_count += line.count('(') - line.count(')')
                     
-                    # 检查是否有分号（端口列表结束标志）
-                    if ';' in line and paren_count <= 0:
-                        found_semicolon = True
+                    # 检查是否在多行语句中（parameter/localparam/端口声明）
+                    if stripped_line.startswith(('parameter', 'localparam', 'input', 'output', 'inout')):
+                        in_multi_line_statement = True
+                    
+                    # 检查是否有分号（语句结束标志）
+                    if ';' in line:
+                        # 如果是parameter/localparam/端口声明的结束
+                        if in_multi_line_statement:
+                            processed_lines.append(original_line)
+                            in_multi_line_statement = False
+                            
+                            # 只有在端口列表的分号且括号平衡时才标记found_semicolon
+                            if paren_count <= 0:
+                                found_semicolon = True
+                                
+                                # 检查下一行是否是端口声明或参数声明
+                                next_line_is_port = False
+                                if line_num + 1 < len(lines):
+                                    next_stripped = lines[line_num + 1].strip()
+                                    if (next_stripped.startswith(('input', 'output', 'inout', 'parameter', 'localparam')) or
+                                        not next_stripped or next_stripped.startswith('//')):
+                                        next_line_is_port = True
+                                
+                                if not next_line_is_port:
+                                    ports_section_ended = True
+                                    logger.debug(f"Ports section ended for module {module_name}, removing implementation")
+                            continue
+                        elif paren_count <= 0:
+                            # 端口列表的结束分号
+                            found_semicolon = True
+                            processed_lines.append(original_line)
+                            
+                            # 检查下一行是否是端口声明或参数声明
+                            next_line_is_port = False
+                            if line_num + 1 < len(lines):
+                                next_stripped = lines[line_num + 1].strip()
+                                if (next_stripped.startswith(('input', 'output', 'inout', 'parameter', 'localparam')) or
+                                    not next_stripped or next_stripped.startswith('//')):
+                                    next_line_is_port = True
+                            
+                            if not next_line_is_port:
+                                ports_section_ended = True
+                                logger.debug(f"Ports section ended for module {module_name}, removing implementation")
+                            continue
+                        else:
+                            # 括号未平衡，继续处理
+                            processed_lines.append(original_line)
+                            continue
+                    
+                    # 如果在多行语句中，或者括号未平衡，或者还没找到分号，继续保留
+                    if in_multi_line_statement or paren_count > 0 or not found_semicolon:
                         processed_lines.append(original_line)
-                        
-                        # 检查下一行是否是端口声明或参数声明
-                        next_line_is_port = False
-                        if line_num + 1 < len(lines):
-                            next_stripped = lines[line_num + 1].strip()
-                            if (next_stripped.startswith(('input', 'output', 'inout', 'parameter', 'localparam')) or
-                                not next_stripped or next_stripped.startswith('//')):
-                                next_line_is_port = True
-                        
-                        if not next_line_is_port:
-                            ports_section_ended = True
-                            logger.debug(f"Ports section ended for module {module_name}, removing implementation")
                         continue
                     
-                    # 检查是否是参数或端口声明行
-                    if (stripped_line.startswith(('parameter', 'localparam', 'input', 'output', 'inout')) or
-                        paren_count > 0 or not found_semicolon):
+                    # 检查是否是参数或端口声明行的开始
+                    if stripped_line.startswith(('parameter', 'localparam', 'input', 'output', 'inout')):
                         processed_lines.append(original_line)
+                        in_multi_line_statement = True
                         continue
                     
                     # 如果找到了分号但括号计数异常，可能是复杂的端口声明
