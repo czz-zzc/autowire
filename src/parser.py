@@ -860,7 +860,7 @@ class PyVerilogParser:
         return 1
     
     def _eval_expression(self, expr: str) -> int:
-        """安全计算表达式，支持条件表达式"""
+        """安全计算表达式，支持条件表达式和系统函数"""
         expr = expr.strip()
         
         # 处理条件表达式 (condition)? value1 : value2
@@ -869,6 +869,10 @@ class PyVerilogParser:
                 return self._eval_conditional_expression(expr)
             except:
                 pass
+        
+        # 处理系统函数（如 $clog2, $bits 等）
+        if '$' in expr:
+            expr = self._eval_system_functions(expr)
         
         try:
             # 只允许安全的字符
@@ -887,6 +891,35 @@ class PyVerilogParser:
             return int(expr_fixed)
         except:
             return 0
+    
+    def _eval_system_functions(self, expr: str) -> str:
+        """计算Verilog系统函数，返回计算后的表达式"""
+        import math
+        
+        # 处理 $clog2(n) - 计算以2为底的对数向上取整
+        def eval_clog2(match):
+            arg = match.group(1).strip()
+            try:
+                # 递归计算参数（可能包含其他表达式）
+                n = self._eval_expression(arg)
+                if n <= 0:
+                    return '0'
+                # clog2(n) = ceil(log2(n))
+                result = math.ceil(math.log2(n)) if n > 1 else 0
+                return str(result)
+            except:
+                return '0'
+        
+        # 处理 $bits(type) - 简化处理，假设常见类型
+        def eval_bits(match):
+            # 这个需要类型信息，暂时返回0或保持原样
+            return '32'  # 默认值，实际应该查找类型定义
+        
+        # 替换系统函数调用
+        expr = re.sub(r'\$clog2\s*\(\s*([^)]+)\s*\)', eval_clog2, expr)
+        expr = re.sub(r'\$bits\s*\(\s*([^)]+)\s*\)', eval_bits, expr)
+        
+        return expr
     
     def _eval_conditional_expression(self, expr: str) -> int:
         """计算条件表达式 (condition)? value1 : value2"""
