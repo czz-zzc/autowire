@@ -209,6 +209,11 @@ class ConnectionManager:
             self._process_bit_select_connection(conn_value_str, target_port)
             logger.debug(f"Set bit-select connection: {conn_key} -> {conn_value_str}")
             
+        elif connection_type == 'expression':
+            target_port.connect_wire = conn_value_str
+            self._process_expression_connection(conn_value_str, target_port)
+            logger.debug(f"Set expression connection: {conn_key} -> {conn_value_str}")
+            
         else:  # normal signal
             target_port.connect_wire = conn_value_str
             self._process_normal_connection(conn_value_str, target_port)
@@ -232,6 +237,10 @@ class ConnectionManager:
         # 判断是否为常值
         if conn_value.isdigit() or "'" in conn_value:
             return 'constant'
+        
+        # 判断是否为表达式（包含运算符：&, |, ^, ~, +, -, *, /, 等）
+        if any(op in conn_value for op in ['&', '|', '^', '~', '+', '-', '*', '/', '%', '>', '<', '=']):
+            return 'expression'
             
         return 'normal'
         
@@ -258,6 +267,34 @@ class ConnectionManager:
         wire_name = conn_value.split('[')[0].strip()
         if wire_name:
             self._update_wire_info(wire_name, target_port)
+            
+    def _process_expression_connection(self, conn_value: str, target_port: Port):
+        """处理表达式连接，提取其中的信号名"""
+        import re
+        
+        # 先移除所有数字字面量，避免误识别进制后缀
+        # 匹配 Verilog 数字格式：<位宽>'<进制><数值>
+        # 例如：8'b1010, 16'hABCD, 32'd12345, 4'o7654
+        cleaned_expr = re.sub(r"\d+'\s*[bdho]\w+", "", conn_value, flags=re.IGNORECASE)
+        
+        # 提取所有可能的标识符（信号名）
+        # 匹配模式：字母或下划线开头，后跟字母、数字、下划线
+        identifiers = re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', cleaned_expr)
+        
+        # Verilog 保留关键字列表（部分常见的）
+        verilog_keywords = {
+            'module', 'endmodule', 'input', 'output', 'inout', 'wire', 'reg',
+            'assign', 'always', 'if', 'else', 'case', 'default', 'for', 'while',
+            'begin', 'end', 'posedge', 'negedge', 'or', 'and', 'not', 'xor'
+        }
+        
+        for identifier in identifiers:
+            # 跳过Verilog关键字
+            if identifier.lower() in verilog_keywords:
+                continue
+            # 更新wire信息
+            self._update_wire_info(identifier, target_port)
+            logger.debug(f"  Extracted signal from expression: {identifier}")
             
     def _process_normal_connection(self, conn_value: str, target_port: Port):
         """处理普通信号连接"""
