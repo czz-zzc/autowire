@@ -859,6 +859,38 @@ class PyVerilogParser:
             pass
         return 1
     
+    def _convert_verilog_literal_to_decimal(self, verilog_literal: str) -> str:
+        """将Verilog数值字面量转换为十进制字符串
+        
+        支持格式：<width>'<base><value>
+        例如：32'h9 -> "9", 8'd255 -> "255", 4'b1010 -> "10"
+        """
+        verilog_num_pattern = r"(\d+)'([bBhHdDoO])([0-9a-fA-F_]+)"
+        match = re.match(verilog_num_pattern, verilog_literal)
+        
+        if not match:
+            return verilog_literal
+        
+        width = int(match.group(1))  # 位宽
+        base = match.group(2).lower()  # 进制标识 (b/h/d/o)
+        value_str = match.group(3).replace('_', '')  # 数值部分，去掉下划线
+        
+        try:
+            # 根据进制转换数值
+            if base == 'h':
+                value = int(value_str, 16)
+            elif base == 'd':
+                value = int(value_str, 10)
+            elif base == 'b':
+                value = int(value_str, 2)
+            elif base == 'o':
+                value = int(value_str, 8)
+            else:
+                value = 0
+            return str(value)
+        except:
+            return '0'
+    
     def _eval_expression(self, expr: str) -> int:
         """安全计算表达式，支持条件表达式和系统函数"""
         expr = expr.strip()
@@ -873,6 +905,13 @@ class PyVerilogParser:
         # 处理系统函数（如 $clog2, $bits 等）
         if '$' in expr:
             expr = self._eval_system_functions(expr)
+        
+        # 处理Verilog数值字面量格式 (如 32'h9, 8'd255, 4'b1010)
+        # 使用替换方式支持包含算术运算的表达式，如 32'h9 - 1
+        verilog_num_pattern = r"(\d+)'([bBhHdDoO])([0-9a-fA-F_]+)"
+        expr = re.sub(verilog_num_pattern, 
+                     lambda m: self._convert_verilog_literal_to_decimal(m.group(0)), 
+                     expr)
         
         try:
             # 只允许安全的字符
