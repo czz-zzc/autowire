@@ -245,7 +245,14 @@ class ConnectionManager:
         return 'normal'
         
     def _process_concatenation_connection(self, conn_value: str, target_port: Port):
-        """处理拼接连接"""
+        """处理拼接连接
+        注意：拼接表达式中的信号不应该使用目标端口的位宽，
+        而应该保持它们各自在源模块中定义的位宽。
+        但是需要根据目标端口方向标记这些信号的使用情况：
+        - 目标端口是input：拼接中的信号被输入端使用（has_input=True）
+        - 目标端口是output：拼接中的信号需要驱动输出端（has_output=True）
+        这样可以正确判断信号是否需要输出到顶层。
+        """
         concat_content = conn_value.strip('{}')
         signals = [s.strip() for s in concat_content.split(',')]
         
@@ -260,13 +267,57 @@ class ConnectionManager:
             if not wire_name:
                 continue
                 
-            self._update_wire_info(wire_name, target_port)
+            # 创建或获取 WireInfo
+            if wire_name not in self.wire_set:
+                self.wire_set[wire_name] = WireInfo(name=wire_name)
+            
+            wire_info = self.wire_set[wire_name]
+            
+            # 根据目标端口方向标记信号使用情况
+            # 注意：不设置位宽，位宽由实际端口定义决定
+            if target_port.direction == 'input':
+                # 目标端口是输入，拼接中的信号被输入端使用
+                if not wire_info.has_input:
+                    wire_info.has_input = True
+                    logger.debug(f"Marked signal {wire_name} as having input usage (from concatenation to input port)")
+            elif target_port.direction == 'output':
+                # 目标端口是输出，拼接中的信号需要驱动输出端
+                if not wire_info.has_output:
+                    wire_info.has_output = True
+                    logger.debug(f"Marked signal {wire_name} as having output usage (from concatenation to output port)")
+            
+            # 不调用 _update_wire_info，避免错误地使用目标端口的位宽
             
     def _process_bit_select_connection(self, conn_value: str, target_port: Port):
-        """处理位选择连接"""
+        """处理位选择连接
+        注意：位选择的信号应该保持其原始位宽，不应该使用目标端口的位宽。
+        但是需要根据目标端口方向标记这些信号的使用情况：
+        - 目标端口是input：位选择的信号被输入端使用（has_input=True）
+        - 目标端口是output：位选择的信号需要驱动输出端（has_output=True）
+        这样可以正确判断信号是否需要输出到顶层。
+        """
         wire_name = conn_value.split('[')[0].strip()
         if wire_name:
-            self._update_wire_info(wire_name, target_port)
+            # 创建或获取 WireInfo
+            if wire_name not in self.wire_set:
+                self.wire_set[wire_name] = WireInfo(name=wire_name)
+            
+            wire_info = self.wire_set[wire_name]
+            
+            # 根据目标端口方向标记信号使用情况
+            # 注意：不设置位宽，位宽由实际端口定义决定
+            if target_port.direction == 'input':
+                # 目标端口是输入，位选择的信号被输入端使用
+                if not wire_info.has_input:
+                    wire_info.has_input = True
+                    logger.debug(f"Marked signal {wire_name} as having input usage (from bit-select to input port)")
+            elif target_port.direction == 'output':
+                # 目标端口是输出，位选择的信号需要驱动输出端
+                if not wire_info.has_output:
+                    wire_info.has_output = True
+                    logger.debug(f"Marked signal {wire_name} as having output usage (from bit-select to output port)")
+            
+            # 不调用 _update_wire_info，避免错误地使用目标端口的位宽
             
     def _process_expression_connection(self, conn_value: str, target_port: Port):
         """处理表达式连接，提取其中的信号名"""
