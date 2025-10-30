@@ -257,7 +257,10 @@ class VerilogCodeGenerator:
                 
             if wire_info.has_input and wire_info.has_output:
                 # 检查位宽一致性
-                if wire_info.input_width_value != wire_info.output_width_value:
+                # 只有当两端都有有效位宽值时才检查（避免拼接/位选择信号的误报）
+                if (wire_info.input_width_value > 0 and 
+                    wire_info.output_width_value > 0 and 
+                    wire_info.input_width_value != wire_info.output_width_value):
                     max_width = max(wire_info.input_width_value, wire_info.output_width_value)
                     logger.warning(f"Width mismatch for wire {wire_name}: "
                                  f"input={wire_info.input_width_value}, "
