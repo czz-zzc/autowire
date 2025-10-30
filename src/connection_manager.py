@@ -123,9 +123,14 @@ class ConnectionManager:
                         connected_count += 1
                     else:
                         # 检查位宽一致性
-                        if wire_info.input_width_value != port.width_value:
+                        # 只有当 wire_info 已有位宽信息时才检查（避免拼接/位选择信号的误报）
+                        if wire_info.input_width_value > 0 and wire_info.input_width_value != port.width_value:
                             logger.warning(f"Input width mismatch for {wire_name}: "
                                          f"{wire_info.input_width_value} vs {port.width_value}")
+                        # 如果之前没有设置位宽（如拼接/位选择标记的信号），现在补充
+                        if wire_info.input_width_value == 0:
+                            wire_info.input_width = port.width
+                            wire_info.input_width_value = port.width_value
                         port.connect_wire = wire_name
                         port.is_connected = True
                         connected_count += 1
