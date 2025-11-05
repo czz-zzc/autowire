@@ -54,6 +54,7 @@ class WireInfo:
     name: str
     has_input: bool = False    # 是否有输入端口连接
     has_output: bool = False   # 是否有输出端口连接
+    is_inout: bool = False     # 是否为双向端口（inout）
     input_width: str = ""      # 输入端口位宽
     output_width: str = ""     # 输出端口位宽
     input_width_value: int = 0 # 输入端口位宽数值

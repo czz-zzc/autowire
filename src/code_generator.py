@@ -53,8 +53,23 @@ class VerilogCodeGenerator:
                 if wire_name in self.wire_set:
                     wire_info = self.wire_set[wire_name]
                     
+                    # 双向端口（inout），需要延申到顶层
+                    if wire_info.is_inout:
+                        top_port = Port(
+                            name=wire_name,
+                            direction="inout",
+                            width=wire_info.input_width,
+                            width_value=wire_info.input_width_value,
+                            is_array=wire_info.is_array,
+                            array_size=wire_info.array_size,
+                            source_instance=wire_info.source_instance if wire_info.source_instance else instance.instance_name
+                        )
+                        self.top_ports.append(top_port)
+                        added_ports.add(wire_name)
+                        logger.debug(f"Added top inout port: {wire_name} from {instance.instance_name}, array: {wire_info.is_array}")
+                    
                     # 只有输入端，需要从顶层输入
-                    if not wire_info.has_output and wire_info.has_input:
+                    elif not wire_info.has_output and wire_info.has_input:
                         top_port = Port(
                             name=wire_name,
                             direction="input",
@@ -89,8 +104,20 @@ class VerilogCodeGenerator:
         for wire_name, wire_info in self.wire_set.items():
             if wire_name in added_ports:
                 continue
+            
+            if wire_info.is_inout:
+                top_port = Port(
+                    name=wire_name,
+                    direction="inout",
+                    width=wire_info.input_width,
+                    width_value=wire_info.input_width_value,
+                    is_array=wire_info.is_array,
+                    array_size=wire_info.array_size
+                )
+                remaining_wires.append(top_port)
+                logger.debug(f"Added remaining top inout port: {wire_name}, array: {wire_info.is_array}")
                 
-            if not wire_info.has_output and wire_info.has_input:
+            elif not wire_info.has_output and wire_info.has_input:
                 top_port = Port(
                     name=wire_name,
                     direction="input",
@@ -295,7 +322,8 @@ class VerilogCodeGenerator:
         for wire_name, width_expr in sorted(internal_wires):
             wire_info = self.wire_set[wire_name]  # 获取完整的wire信息
             
-            if width_expr and width_expr != "0":
+            #if width_expr and width_expr != "0":
+            if width_expr and width_expr not in ("0", "0:0"):
                 width_part = f"[{width_expr}]".ljust(max_width_len)
             else:
                 width_part = "".ljust(max_width_len)

@@ -152,6 +152,24 @@ class ConnectionManager:
                     else:
                         logger.error(f"Multiple outputs trying to drive wire {wire_name}")
                         logger.error(f"  Conflicting port: {instance.instance_name}.{port.name}")
+                        
+                elif port.direction == 'inout':
+                    # inout 端口标记为双向端口
+                    wire_info.is_inout = True
+                    wire_info.input_width = port.width
+                    wire_info.input_width_value = port.width_value
+                    wire_info.output_width = port.width
+                    wire_info.output_width_value = port.width_value
+                    
+                    # 设置数组信息（如果是数组端口）
+                    if hasattr(port, 'is_array') and port.is_array:
+                        wire_info.is_array = True
+                        wire_info.array_size = getattr(port, 'array_size', "")
+                        wire_info.source_instance = instance.instance_name
+                    
+                    port.connect_wire = wire_name
+                    port.is_connected = True
+                    connected_count += 1
         
         logger.info(f"Auto-connection completed: {connected_count}/{total_count} ports connected")
         logger.info(f"Total wires in wire_set: {len(self.wire_set)}")
