@@ -83,8 +83,14 @@ class VerilogCodeGenerator:
                         added_ports.add(wire_name)
                         logger.debug(f"Added top input port: {wire_name} from {instance.instance_name}, array: {wire_info.is_array}")
                         
-                    # 只有输出端，需要输出到顶层（但不在top_add中的信号）
-                    elif not wire_info.has_input and wire_info.has_output:
+                    # 只有输出端，需要输出到顶层
+                    # 或者：是内部连线（有输入也有输出），但在 top_add 中，且当前端口是驱动源（output）
+                    elif (not wire_info.has_input and wire_info.has_output) or \
+                         (wire_name in self.top_add_signals and wire_info.has_output and port.direction == 'output'):
+                        
+                        # 使用当前实例名作为 source_instance，确保端口归类到该实例下
+                        source_inst = instance.instance_name
+
                         top_port = Port(
                             name=wire_name,
                             direction="output", 
@@ -92,7 +98,7 @@ class VerilogCodeGenerator:
                             width_value=wire_info.output_width_value,
                             is_array=wire_info.is_array,
                             array_size=wire_info.array_size,
-                            source_instance=wire_info.source_instance if wire_info.source_instance else instance.instance_name
+                            source_instance=source_inst
                         )
                         self.top_ports.append(top_port)
                         added_ports.add(wire_name)
@@ -148,6 +154,9 @@ class VerilogCodeGenerator:
             logger.info(f"Processing top_add signals: {self.top_add_signals}")
             top_add_ports = []
             for signal_name in self.top_add_signals:
+                if signal_name in added_ports:
+                    continue
+                    
                 if signal_name in self.wire_set:
                     wire_info = self.wire_set[signal_name]
                     # 如果信号有输出端，则作为顶层 output 端口
