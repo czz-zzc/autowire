@@ -14,22 +14,21 @@ instances:
     name: u_dma_csr
   - module: dma_core
     name: u_dma_core
-    parameters:
-      DMA_NUM_DESC: 2
+
 
 # inter-module connections
 connections:
-  u_dma_csr.csr_dma_version: 16'habcd
+  u_dma_csr.csr_dma_version : 16'habcd
+  u_dma_csr.csr_dma_done    : intr_dma_done
+  u_dma_csr.csr_dma_err     : intr_dma_err
 
+  u_dma_core.csr_dma_done   : intr_dma_done
+  u_dma_core.csr_dma_err    : intr_dma_err
 # bundle connections
 bundle_con:
-  - axi:
-      u_dma_core.axim_*    : dma_axi4m_*
-  - apb:
-      u_dma_csr.*          : dma_apbs_*
 
 # top-level output additions
 top_add:
-  - csr_dma_done
-  - csr_dma_err
+  - intr_dma_done
+  - intr_dma_err
   

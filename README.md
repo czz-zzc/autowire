@@ -16,10 +16,13 @@ graph TB
         B[Generator<br/>主控制器<br/>协调各模块工作流程]
     end
     
-    subgraph "配置管理层"  
-        C[ConfigManager<br/>配置文件加载管理]
-        D[bundle.yaml<br/>协议信号定义]
-        E[项目配置.yaml<br/>实例和连线配置]
+    subgraph "代码生成层"
+        I[CodeGenerator<br/>顶层模块生成器]
+        J[输出文件<br/>集成的顶层模块]
+    end
+    
+    subgraph "连线管理层"
+        H[ConnectionManager<br/>协议连线+手动连线+自动连线]
     end
     
     subgraph "解析处理层"
@@ -27,20 +30,17 @@ graph TB
         G[RTL源文件<br/>Verilog模块]
     end
     
-    subgraph "连线管理层"
-        H[ConnectionManager<br/>协议连线+手动连线+自动连线]
-    end
-    
-    subgraph "代码生成层"
-        I[CodeGenerator<br/>顶层模块生成器]
-        J[输出文件<br/>集成的顶层模块]
+    subgraph "配置管理层"  
+        C[ConfigManager<br/>配置文件加载管理]
+        D[bundle.yaml<br/>协议信号定义]
+        E[项目配置.yaml<br/>实例和连线配置]
     end
     
     A --> B
-    B --> C
-    B --> F  
-    B --> H
     B --> I
+    B --> H
+    B --> F  
+    B --> C
     
     C --> D
     C --> E
@@ -140,55 +140,77 @@ AutoWire 自动生成以下文件：
 #### 顶层模块 `dma_top.v`：
 ```verilog
 module dma_top(
-    // APB从设备接口（CSR模块）
-    input           pclk,
-    input           presetn,
-    input           dma_apbs_psel,
-    input           dma_apbs_penable,
-    input           dma_apbs_pwrite,
-    input   [11:0]  dma_apbs_paddr,
-    input   [31:0]  dma_apbs_pwdata,
-    output  [31:0]  dma_apbs_prdata,
-    output          dma_apbs_pready,
-
-    // AXI4主设备接口（数据传输）
+    // u_dma_csr ports
     input           clk,
     input           rst_n,
-    output  [31:0]  dma_axi4m_awaddr,
-    output  [7:0]   dma_axi4m_awlen,
-    // ... 完整的AXI4信号
+    input           psel,
+    input           penable,
+    input           pwrite,
+    input   [11:0]  paddr,
+    input   [31:0]  pwdata,
+    output  [31:0]  prdata,
+    output          pready,
+    output          pslverr,
 
-    // top_add输出端口（内部信号暴露）
-    output          csr_dma_done,              // DMA完成状态
-    output          csr_dma_err                // DMA错误状态  
+    // u_dma_core ports
+    output          intr_dma_done,
+    output          intr_dma_err,
+    output          axim_awlock,
+    output  [3:0]   axim_awcache,
+    output  [2:0]   axim_awprot,
+    output  [3:0]   axim_awqos,
+    output  [31:0]  axim_awaddr,
+...
 );
 
-// 内部连线信号（自动声明）
-wire  [31:0]  csr_desc_src_addr [1:0];     // 数组信号
-wire  [31:0]  csr_desc_dst_addr [1:0]; 
-wire  [7:0]   csr_dma_maxburst;
-// ... 更多内部信号
+wire  [31:0]  csr_dma_err_addr          ;
+wire          csr_dma_err_clr           ;
+wire  [1:0]   csr_dma_err_type          ;
+wire  [7:0]   csr_dma_maxburst          ;
+wire  [31:0]  csr_dma_single_trans_bytes;
+wire          csr_dma_start             ;
+wire  [1:0]   csr_dma_status            ;
+wire  [31:0]  csr_dma_total_trans_bytes ;
+wire  [31:0]  csr_dst_addr              ;
+wire  [31:0]  csr_dst_jump_gap          ;
+wire  [15:0]  csr_dst_jump_num          ;
+wire  [15:0]  csr_dst_jump_state        ;
+wire  [31:0]  csr_src_addr              ;
+wire  [31:0]  csr_src_jump_gap          ;
+wire  [15:0]  csr_src_jump_num          ;
+wire  [15:0]  csr_src_jump_state        ;
 
-// CSR模块实例化
+// Instance: u_dma_csr (dma_csr)
 dma_csr u_dma_csr (
-    .pclk              (pclk               ),
-    .presetn           (presetn            ),
-    .psel              (dma_apbs_psel      ),
-    .csr_dma_version   (16'habcd           ),  // 常量连接
-    // ... APB协议信号自动连接
+    .clk                        (clk                       ),    // input 
+    .rst_n                      (rst_n                     ),    // input 
+    .psel                       (psel                      ),    // input 
+    .penable                    (penable                   ),    // input 
+    .pwrite                     (pwrite                    ),    // input 
+    .paddr                      (paddr                     ),    // input  [11:0]
+    .pwdata                     (pwdata                    ),    // input  [31:0]
+    .prdata                     (prdata                    ),    // output [31:0]
+    .pready                     (pready                    ),    // output
+    .pslverr                    (pslverr                   ),    // output
+    .csr_dma_version            (16'habcd                  ),    // input  [15:0]
+    .csr_dma_start              (csr_dma_start             ),    // output
+    .csr_dma_maxburst           (csr_dma_maxburst          ),    // output [7:0]
+    .csr_dma_single_trans_bytes (csr_dma_single_trans_bytes),    // output [31:0]
+...
 );
 
-// DMA核心模块实例化（参数化）
-dma_core #(
-    .DMA_NUM_DESC(2)        // 参数自动传递
-) u_dma_core (
-    .clk               (clk                ),
-    .rst_n             (rst_n              ),
-    .axim_awaddr       (dma_axi4m_awaddr   ),
-    // ... AXI协议信号自动连接
-    .csr_desc_src_addr (csr_desc_src_addr  ), // 内部信号连接
+// Instance: u_dma_core (dma_core)
+dma_core u_dma_core (
+    .clk                        (clk                       ),    // input 
+    .rst_n                      (rst_n                     ),    // input 
+    .csr_dma_single_trans_bytes (csr_dma_single_trans_bytes),    // input  [31:0]
+    .csr_dma_total_trans_bytes  (csr_dma_total_trans_bytes ),    // input  [31:0]
+    .csr_src_addr               (csr_src_addr              ),    // input  [31:0]
+    .csr_dst_addr               (csr_dst_addr              ),    // input  [31:0]
+    .csr_src_jump_num           (csr_src_jump_num          ),    // input  [15:0]
+    .csr_dst_jump_num           (csr_dst_jump_num          ),    // input  [15:0]
+....
 );
-
 endmodule
 ```
 
@@ -249,9 +271,6 @@ endmodule
 - **临时文件**: 可选保留PyVerilog生成的临时解析文件
 
 
-
-
-
 ### 核心算法说明
 
 #### 1. 协议信号匹配算法
@@ -283,21 +302,6 @@ python autowire.py [-h] [-i INPUT] [-o OUTPUT] [-b BOUNDING] [-d] [--version]
   --version             显示版本信息
 ```
 
-**使用示例：**
-
-```bash
-# DMA控制器集成（推荐）
-python autowire.py -i vcn_dma.yaml -o ./dma_rtl_gen -d
-
-# CPU子系统集成，使用自定义协议文件
-python autowire.py -i cpu_config.yaml -b custom_protocols.yaml -o cpu_top.v
-
-# 快速生成，输出到当前目录
-python autowire.py -i simple_config.yaml
-
-# 调试模式，查看详细处理过程
-python autowire.py -i debug_config.yaml -o ./debug -d
-```
 
 ### 连接语法支持
 
@@ -337,19 +341,6 @@ WARNING - Width mismatch for wire data_bus: input=32, output=16
 - 使用位选择：`data_bus[15:0]`
 - 使用拼接：`{16'b0, narrow_signal}`
 - 检查模块定义确保位宽一致
-
-### 4. 调试技巧
-```bash
-# 启用详细调试
-python autowire.py -i config.yaml -o ./debug -d
-
-# 检查生成的中间配置文件
-cat debug/config_intermediate.yaml
-
-# 查看详细日志
-tail -f debug/autowire_debug_*.log
-```
-
 ## 项目结构
 
 ```
