@@ -141,8 +141,15 @@ class PyVerilogParser:
             return f"// Include file not found: {file_path}\n"
             
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
+        except UnicodeDecodeError:
+            try:
+                with open(file_path, 'r', encoding='latin-1') as f:
+                    content = f.read()
+            except Exception as e:
+                logger.warning(f"Error reading file {file_path}: {e}")
+                return f"// Error reading file: {file_path}\n"
         except Exception as e:
             logger.warning(f"Error reading file {file_path}: {e}")
             return f"// Error reading file: {file_path}\n"
@@ -426,6 +433,9 @@ class PyVerilogParser:
     def _parse_combined_content(self, combined_content: str, module_name: str, 
                               file_path: str, instance_params: Optional[Dict[str, str]]) -> Optional[ModuleInfo]:
         """解析合并的内容"""
+        # 确保内容只包含 ASCII 安全字符（避免 pyverilog 在 Windows 上用 GBK 读取时失败）
+        combined_content = combined_content.encode('ascii', errors='ignore').decode('ascii')
+
         # 创建临时文件 - 优先放在输出目录下
         if self.output_dir and os.path.isdir(self.output_dir):
             # 在输出目录下创建临时文件
@@ -1110,7 +1120,7 @@ class PyVerilogParser:
     def _extract_modules_by_regex(self, rtl_file: str) -> List[str]:
         """使用正则表达式从文件中提取模块名"""
         try:
-            with open(rtl_file, 'r', encoding='utf-8') as f:
+            with open(rtl_file, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
             
             # 移除注释
