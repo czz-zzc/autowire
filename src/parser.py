@@ -736,8 +736,17 @@ class PyVerilogParser:
         if dimensions_expr.startswith('[') and dimensions_expr.endswith(']'):
             inner_expr = dimensions_expr[1:-1]  # 移除外层方括号
             
-            # 处理 msb:lsb 格式
+            # 处理 msb:lsb 格式（括号感知分割，正确处理含三目运算符的MSB/LSB）
             if ':' in inner_expr:
+                range_parts = self._split_range_colon(inner_expr)
+                if range_parts is not None:
+                    try:
+                        msb_val = self._eval_expression(range_parts[0])
+                        lsb_val = self._eval_expression(range_parts[1])
+                        return f"[{msb_val}:{lsb_val}]"
+                    except:
+                        return dimensions_expr
+                # fallback: 简单分割
                 parts = inner_expr.split(':')
                 if len(parts) == 2:
                     try:
@@ -756,43 +765,57 @@ class PyVerilogParser:
         
         return dimensions_expr
        
+    def _split_range_colon(self, expr: str):
+        """括号感知地找到范围表达式 MSB:LSB 中的顶层分隔冒号。
+        
+        正确区分三目运算符的冒号（如 (a?b:c) 中的 :）
+        和范围分隔冒号（如 MSB:LSB 中的 :）。
+        
+        返回 (msb_str, lsb_str) 或 None（不是范围表达式）。
+        """
+        depth = 0
+        ternary_stack = []  # 记录每个未匹配 ? 时的括号深度
+        
+        for i, c in enumerate(expr):
+            if c == '(':
+                depth += 1
+            elif c == ')':
+                depth -= 1
+            elif c == '?':
+                ternary_stack.append(depth)
+            elif c == ':':
+                if ternary_stack and ternary_stack[-1] == depth:
+                    # 这是三目运算符的冒号，消耗掉对应的 ?
+                    ternary_stack.pop()
+                elif depth == 0:
+                    # 顶层冒号且非三目冒号，即范围分隔符
+                    return expr[:i].strip(), expr[i+1:].strip()
+        return None
+
     def _simplify_width_expression(self, width_expr: str) -> str:
         """简化位宽表达式，计算其中的数学运算"""
         if not width_expr or width_expr == "0":
             return "0"
-            
-        # 先尝试处理整个表达式（包括条件表达式）
-        try:
-            if '?' in width_expr and ':' in width_expr:
-                # 检查是否为条件表达式 (condition ? true_val : false_val)
-                # 而不是位宽范围 [msb:lsb]
-                if not (width_expr.count(':') == 1 and '?' not in width_expr.split(':')[0]):
-                    # 这是条件表达式，尝试计算整个表达式
-                    result = self._eval_expression(width_expr)
-                    return str(result)
-        except:
-            pass
-            
-        # 处理常规情况
-        if ':' in width_expr and '?' not in width_expr:
-            # 处理 [msb:lsb] 格式
-            parts = width_expr.split(':')
-            if len(parts) == 2:
+
+        # 使用括号感知分割，尝试拆分为 MSB:LSB 范围表达式
+        # 这能正确处理 MSB 部分包含三目运算符的情况，如 ((a==0)?2:1)-1:0
+        if ':' in width_expr:
+            range_parts = self._split_range_colon(width_expr)
+            if range_parts is not None:
+                msb_str, lsb_str = range_parts
                 try:
-                    msb_val = self._eval_expression(parts[0].strip())
-                    lsb_val = self._eval_expression(parts[1].strip())
+                    msb_val = self._eval_expression(msb_str)
+                    lsb_val = self._eval_expression(lsb_str)
                     return f"{msb_val}:{lsb_val}"
                 except:
                     return width_expr
-        else:
-            # 单个表达式，尝试计算
-            try:
-                result = self._eval_expression(width_expr)
-                return str(result)
-            except:
-                return width_expr
-                
-        return width_expr
+
+        # 无范围冒号，当作单个表达式（可能是三目或算术）计算
+        try:
+            result = self._eval_expression(width_expr)
+            return str(result)
+        except:
+            return width_expr
     
     def _resolve_parameter_dependencies(self, expr: str, parameters: Dict[str, ParamInfo], 
                                        instance_params: Optional[Dict[str, str]] = None,
@@ -895,10 +918,32 @@ class PyVerilogParser:
         """安全计算表达式，支持条件表达式和系统函数"""
         expr = expr.strip()
         
-        # 处理条件表达式 (condition)? value1 : value2
+        # 处理条件表达式
         if '?' in expr and ':' in expr:
+            # 先将括号内的三目运算符由内而外逐步替换为数值
+            # 模式: (cond ? a : b) 其中 cond/a/b 不含未配对括号
+            # 反复替换直到没有更多三目运算符或不再变化
+            preprocessed = expr
+            for _ in range(20):
+                new_expr = re.sub(
+                    r'\(([^?:]*?)\s*\?\s*([^?:()]+?)\s*:\s*([^?:()]+?)\)',
+                    lambda m: str(
+                        self._eval_expression(m.group(2).strip())
+                        if self._eval_condition(m.group(1).strip())
+                        else self._eval_expression(m.group(3).strip())
+                    ),
+                    preprocessed
+                )
+                if new_expr == preprocessed:
+                    break
+                preprocessed = new_expr
+
+            if '?' not in preprocessed:
+                # 所有三目运算符已求值，继续计算简化后的表达式
+                return self._eval_expression(preprocessed)
+
             try:
-                return self._eval_conditional_expression(expr)
+                return self._eval_conditional_expression(preprocessed)
             except:
                 pass
         
@@ -961,11 +1006,21 @@ class PyVerilogParser:
         return expr
     
     def _eval_conditional_expression(self, expr: str) -> int:
-        """计算条件表达式 (condition)? value1 : value2"""
+        """计算条件表达式 (condition)? value1 : value2（顶层三目，括号感知）"""
         expr = expr.strip()
         
-        # 找到最外层的 ? 和 :
-        question_pos = expr.find('?')
+        # 括号感知地找到顶层的 ?
+        depth = 0
+        question_pos = -1
+        for i, c in enumerate(expr):
+            if c == '(':
+                depth += 1
+            elif c == ')':
+                depth -= 1
+            elif c == '?' and depth == 0:
+                question_pos = i
+                break
+        
         if question_pos == -1:
             return self._eval_expression(expr)
         
@@ -973,8 +1028,9 @@ class PyVerilogParser:
         condition_str = expr[:question_pos].strip()
         remaining = expr[question_pos + 1:].strip()
         
-        # 找到对应的冒号（需要考虑嵌套）
+        # 括号感知地找到顶层冒号（跳过嵌套三目的冒号）
         paren_count = 0
+        ternary_count = 0  # 嵌套三目层数
         colon_pos = -1
         
         for i, c in enumerate(remaining):
@@ -982,9 +1038,14 @@ class PyVerilogParser:
                 paren_count += 1
             elif c == ')':
                 paren_count -= 1
+            elif c == '?' and paren_count == 0:
+                ternary_count += 1
             elif c == ':' and paren_count == 0:
-                colon_pos = i
-                break
+                if ternary_count > 0:
+                    ternary_count -= 1  # 消耗嵌套三目的冒号
+                else:
+                    colon_pos = i
+                    break
         
         if colon_pos == -1:
             raise ValueError(f"Invalid conditional expression: {expr}")
