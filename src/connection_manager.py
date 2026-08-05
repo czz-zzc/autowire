@@ -410,7 +410,13 @@ class ConnectionManager:
         signal_list = self.protocol_signals[protocol]
         logger.debug(f"Using {protocol.upper()} protocol signals ({len(signal_list)} signals)")
         
-        for source_pattern, target_pattern in mappings.items():
+        # Apply generic patterns before more specific ones so a specific rule
+        # (such as ``*_m1``) consistently overrides ``*``.
+        sorted_mappings = sorted(
+            mappings.items(),
+            key=lambda item: self._protocol_mapping_specificity(item[0])
+        )
+        for source_pattern, target_pattern in sorted_mappings:
             # 处理空值（悬空信号）
             if target_pattern is None:
                 target_pattern = ""
@@ -444,6 +450,9 @@ class ConnectionManager:
                 
                 for port, target_name in matched_ports:
                     source_conn = f"{instance_name}.{port.name}"
+                    if source_conn in generated_connections:
+                        logger.debug(f"Override protocol connection: {source_conn} -> {target_name} "
+                                     f"(was {generated_connections[source_conn]})")
                     generated_connections[source_conn] = target_name
                     if target_name == "":
                         logger.debug(f"Generated floating connection: {source_conn} -> <unconnected>")
@@ -477,11 +486,19 @@ class ConnectionManager:
         
     def _contains_protocol_signal(self, port_name: str, signal_list: List[str]) -> bool:
         """检查端口名是否包含协议信号"""
+
+
         port_lower = port_name.lower()
         for signal in signal_list:
-            if signal.lower() in port_lower:
+            signal_pattern = re.escape(signal.lower())
+            if re.search(rf"(?:^|_){signal_pattern}(?:_|$)", port_lower):
                 return True
         return False
+
+    def _protocol_mapping_specificity(self, source_pattern: str) -> Tuple[int, int]:
+        """Return a sort key that places generic protocol patterns first."""
+        port_pattern = source_pattern.split('.', 1)[-1]
+        return (len(port_pattern.replace('*', '')), -port_pattern.count('*'))
         
     def _generate_target_name(self, target_pattern: str, captured_parts: List[str], 
                              original_name: str) -> str:
