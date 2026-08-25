@@ -1127,8 +1127,13 @@ class PyVerilogParser:
             content = re.sub(r'//.*?$', '', content, flags=re.MULTILINE)
             content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
             
-            # 查找模块定义 - 简单匹配module关键字后的第一个标识符
-            return re.findall(r'module\s+(\w+)', content)
+            # 仅匹配行首的 module 声明，避免把 endmodule 误识别为 module。
+            # 普通 Verilog 标识符首字符为字母或下划线，后续可包含数字。
+            return re.findall(
+                r'^\s*module\s+([A-Za-z_]\w*)\b',
+                content,
+                flags=re.MULTILINE,
+            )
         except Exception as e:
             logger.error(f"Error reading file {rtl_file}: {e}")
             return []
