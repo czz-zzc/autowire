@@ -205,10 +205,10 @@ class ConnectionManager:
         if connection_type == 'constant' or connection_type == 'floating':
             if connection_type == 'floating':
                 # 对于空值连接，根据端口方向进行处理
-                if target_port.direction.lower() == 'output':
-                    # 输出端口悬空（不连接）
+                if target_port.direction.lower() in ('output', 'inout'):
+                    # 输出和双向端口悬空（不连接）
                     target_port.connect_wire = " "
-                    logger.debug(f"Set floating connection for output port: {conn_key} -> open(unused)")
+                    logger.debug(f"Set floating connection for {target_port.direction} port: {conn_key} -> open(unused)")
                 else:
                     # 输入端口绑定到0
                     if target_port.width_value > 1:
