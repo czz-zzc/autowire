@@ -171,8 +171,69 @@ class ConnectionManager:
                     port.is_connected = True
                     connected_count += 1
         
+        self._finalize_wire_widths()
         logger.info(f"Auto-connection completed: {connected_count}/{total_count} ports connected")
         logger.info(f"Total wires in wire_set: {len(self.wire_set)}")
+
+    def _finalize_wire_widths(self):
+        """收集全部连接后确定总线位宽，避免依赖配置顺序。
+
+        完整端口提供总线的实际范围；只有切片时，按最大的数字索引
+        推导 [max_index:0]。切片端口自身的位宽不代表整条总线位宽。
+        """
+        full_ports = {}
+        selected_max = {}
+        identifier = r'[a-zA-Z_][\w$]*'
+        selection = re.compile(
+            rf'\b({identifier})\s*\[\s*(\d+)\s*'
+            r'(?:(:|\+:|-:)\s*(\d+)\s*)?\]'
+        )
+        for instance in self.instances:
+            for port in instance.ports:
+                connection = (port.connect_wire or port.name).strip()
+                if re.fullmatch(identifier, connection) and connection in self.wire_set:
+                    full_ports.setdefault(connection, []).append(port)
+                else:
+                    for match in selection.finditer(connection):
+                        name, first, operator, second = match.groups()
+                        if name not in self.wire_set:
+                            continue
+                        high = int(first)
+                        if operator == ':':
+                            high = max(high, int(second))
+                        elif operator == '+:':
+                            high += int(second) - 1
+                        selected_max[name] = max(selected_max.get(name, -1), high)
+
+        for name, wire_info in self.wire_set.items():
+            ports = full_ports.get(name, [])
+            widest = max(ports, key=lambda port: port.width_value) if ports else None
+            if widest is not None:
+                fallback_width, fallback_value = widest.width, widest.width_value
+                if name in selected_max:
+                    bounds = re.fullmatch(r'\s*(\d+)\s*:\s*(\d+)\s*', widest.width)
+                    high = max(map(int, bounds.groups())) if bounds else (
+                        0 if widest.width in ('', '0') else None
+                    )
+                    if high is not None and selected_max[name] > high:
+                        logger.warning(f"Bit selection {name}[{selected_max[name]}] exceeds "
+                                       f"full port range [{widest.width or '0:0'}]")
+            elif name in selected_max:
+                fallback_value = selected_max[name] + 1
+                # 保留 [0:0] 元信息，避免将 bus[0] 的基信号声明为标量。
+                fallback_width = f'{fallback_value - 1}:0'
+            else:
+                continue
+
+            for direction in ('input', 'output'):
+                candidates = [port for port in ports if port.direction in (direction, 'inout')]
+                if candidates:
+                    chosen = max(candidates, key=lambda port: port.width_value)
+                    width, value = chosen.width, chosen.width_value
+                else:
+                    width, value = fallback_width, fallback_value
+                setattr(wire_info, f'{direction}_width', width)
+                setattr(wire_info, f'{direction}_width_value', value)
         
     def get_wire_set(self) -> Dict[str, WireInfo]:
         """获取所有线信息"""
@@ -251,10 +312,10 @@ class ConnectionManager:
         if conn_value.startswith('{') and conn_value.endswith('}'):
             return 'concatenation'
             
-        # 判断是否为位选择格式 signal[bit] 或 signal[msb:lsb]
-        if ('[' in conn_value and ']' in conn_value and 
-            not conn_value.startswith('{') and not conn_value.endswith('}') and
-            not conn_value.isdigit() and "'" not in conn_value):
+        # 仅将完整的 signal[bit] / signal[msb:lsb] 作为位选择。
+        # ~signal[0] 等带运算符的连接必须交给表达式处理，避免把 ~ 当成信号名。
+        if (re.fullmatch(r'[a-zA-Z_][\w$]*(?:\s*\[[^\[\]]+\])+', conn_value)
+                and "'" not in conn_value):
             return 'bit_select'
             
         # 判断是否为常值
@@ -399,7 +460,20 @@ class ConnectionManager:
                 wire_info.has_output = True
                 wire_info.output_width = target_port.width
                 wire_info.output_width_value = target_port.width_value
-                
+
+        elif target_port.direction == 'inout':
+            # 手动改名后仍需保留双向属性，供顶层端口生成使用。
+            wire_info.is_inout = True
+            wire_info.input_width = target_port.width
+            wire_info.input_width_value = target_port.width_value
+            wire_info.output_width = target_port.width
+            wire_info.output_width_value = target_port.width_value
+            if target_port.is_array:
+                wire_info.is_array = True
+                wire_info.array_size = target_port.array_size
+            if target_port.source_instance:
+                wire_info.source_instance = target_port.source_instance
+
     def _process_protocol_mappings(self, protocol: str, mappings: Dict[str, str], 
                                   generated_connections: Dict[str, str]):
         """处理特定协议的映射"""

@@ -260,7 +260,7 @@ class VerilogCodeGenerator:
             
             # 处理位宽
             width_part = ""
-            if port.width and port.width != "0" and port.width != "0:0":
+            if port.width and port.width != "0":
                 width_part = f"[{port.width}]".ljust(max_width_expr_width)
             else:
                 width_part = "".ljust(max_width_expr_width)
@@ -306,6 +306,9 @@ class VerilogCodeGenerator:
                         width_expr = wire_info.input_width
                     else:
                         width_expr = wire_info.output_width
+                elif wire_info.output_width_value == 0 and not wire_info.output_width:
+                    # 分散的位选择输出只标记驱动关系，整条总线的位宽由输入端提供。
+                    width_expr = wire_info.input_width
                 else:
                     width_expr = wire_info.output_width
                     
@@ -332,7 +335,7 @@ class VerilogCodeGenerator:
             wire_info = self.wire_set[wire_name]  # 获取完整的wire信息
             
             #if width_expr and width_expr != "0":
-            if width_expr and width_expr not in ("0", "0:0"):
+            if width_expr and width_expr != "0":
                 width_part = f"[{width_expr}]".ljust(max_width_len)
             else:
                 width_part = "".ljust(max_width_len)
